@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Italian Language Teaching · New England</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#1c2430;--border:#2a3441;
+  --text:#dde4ee;--muted:#6b7a8d;--accent:#90caf9;
+  --k12:#3b82f6;--univ:#ef4444;--altri:#f59e0b;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;}
+#app-shell{max-width:1600px;margin:0 auto;position:relative;}
+
+.header{background:var(--bg);border-bottom:2px solid rgba(144,202,249,.15);padding:18px 28px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.header-title{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;letter-spacing:-.01em;line-height:1.1;color:var(--text);}
+.header-title span{color:var(--accent);font-style:italic;}
+.header-sub{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:500;color:var(--muted);margin-top:5px;letter-spacing:.18em;text-transform:uppercase;}
+.legend{display:flex;gap:14px;flex-wrap:wrap;}
+.leg{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);padding:0 28px;overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{padding:10px 16px;font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;user-select:none;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);}
+.tab-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;background:var(--muted);}
+.tab.active .tab-dot{background:var(--accent);}
+
+.page{display:none;padding:20px 28px 44px;max-width:1440px;margin:0 auto;box-sizing:border-box;width:100%;}
+.page.active{display:block;}
+.two-col{display:grid;grid-template-columns:1fr clamp(300px, 40%, 520px);gap:16px;align-items:start;min-height:0;}
+
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.panel-hdr{padding:11px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.panel-title{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+.panel-body{padding:14px 15px;min-width:0;}
+
+.ctrl-row{display:flex;align-items:center;gap:10px;margin-bottom:15px;flex-wrap:wrap;}
+.ctrl-lbl{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:500;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;flex-shrink:0;}
+.btn-grp{display:flex;gap:3px;}
+.cbtn{background:var(--bg3);border:1px solid var(--border);color:var(--muted);padding:4px 11px;border-radius:4px;font-size:10.5px;cursor:pointer;transition:all .15s;font-family:'Barlow',sans-serif;white-space:nowrap;}
+.cbtn.active{border-color:var(--accent);color:#0d1117;background:var(--accent);font-weight:600;}
+.cbtn:hover:not(.active){border-color:var(--accent);color:var(--accent);}
+
+/* MAP */
+.state-fill{fill:rgba(144,202,249,.07);stroke:rgba(144,202,249,.3);stroke-width:.8;cursor:pointer;transition:fill .2s;}
+.state-fill:hover,.state-fill.hov{fill:rgba(144,202,249,.17);}
+.county-fill{fill:rgba(144,202,249,.04);stroke:rgba(144,202,249,.14);stroke-width:.35;}
+
+/* PULSE ANIMATION */
+@keyframes pulse {
+  0%   { r: var(--pr); opacity: 0.55; }
+  50%  { r: var(--pr2); opacity: 0.2; }
+  100% { r: var(--pr); opacity: 0.55; }
+}
+.pulse-ring {
+  animation: pulse 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* TOOLTIP */
+#tip{position:fixed;pointer-events:none;z-index:9999;background:rgba(13,17,23,.97);border:1px solid var(--border);border-radius:8px;padding:13px 15px;min-width:190px;max-width:240px;box-shadow:0 8px 32px rgba(0,0,0,.7);display:none;}
+.tt-title{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;margin-bottom:10px;}
+.tt-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;align-items:center;}
+.tt-lbl{color:var(--muted);}
+.tt-val{font-weight:600;font-family:'Barlow Condensed',sans-serif;}
+.tt-dot{width:8px;height:8px;border-radius:50%;margin-right:5px;display:inline-block;flex-shrink:0;}
+.tt-div{border-top:1px solid var(--border);margin:8px 0;}
+.tt-inst{font-size:10px;color:var(--muted);padding:1px 0;line-height:1.5;}
+.tt-inst::before{content:"· ";}
+
+/* SIDEBAR */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:13px;}
+.stat-box{background:var(--bg3);border-radius:6px;padding:9px 10px;}
+.stat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:3px;}
+.stat-num{font-family:'Barlow Condensed',sans-serif;font-size:clamp(16px,2vw,22px);font-weight:700;line-height:1;letter-spacing:-.01em;}
+.stat-delta{font-size:10px;font-weight:600;margin-top:2px;}
+.bar-track{background:var(--bg3);border-radius:2px;height:5px;overflow:hidden;margin-top:3px;}
+.srow{margin-bottom:8px;}
+.srow-top{display:flex;justify-content:space-between;align-items:baseline;font-size:11px;margin-bottom:3px;}
+.srow-name{font-weight:500;}
+.srow-val{font-family:'Barlow Condensed',sans-serif;color:var(--muted);font-size:11px;}
+.sector-row{display:flex;gap:8px;margin-bottom:12px;}
+.sector-chip{flex:1;background:var(--bg3);border-radius:5px;padding:8px 6px;text-align:center;}
+.sector-chip .sv{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;line-height:1;}
+.sector-chip .sl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:2px;}
+
+@media(max-width:1100px){.two-col{grid-template-columns:1fr clamp(280px,38%,480px);}}
+@media(max-width:900px){.two-col{grid-template-columns:1fr;}.header{flex-direction:column;align-items:flex-start;}.page{padding:14px;}.tabs{padding:0 14px;}}
+
+/* ABOUT BUTTON */
+.about-btn{background:transparent;border:1px solid rgba(144,202,249,.3);color:rgba(144,202,249,.7);padding:4px 12px;border-radius:4px;font-size:10.5px;cursor:pointer;font-family:'Barlow',sans-serif;letter-spacing:.04em;transition:all .15s;white-space:nowrap;}
+.about-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(144,202,249,.07);}
+
+/* ABOUT MODAL */
+.about-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:20000;display:none;align-items:center;justify-content:center;}
+.about-overlay.visible{display:flex;}
+.about-modal{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:28px 32px;max-width:520px;width:90%;box-shadow:0 16px 48px rgba(0,0,0,.7);position:relative;}
+.about-modal-title{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;}
+.about-modal-close{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:12px;color:var(--muted);transition:all .15s;flex-shrink:0;}
+.about-modal-close:hover{background:rgba(255,255,255,.18);color:var(--text);}
+.about-modal-body{font-size:12.5px;color:rgba(221,228,238,.82);line-height:1.75;}
+.about-modal-body p{margin-bottom:12px;}
+.about-modal-body p:last-child{margin-bottom:0;}
+.about-modal-body b{color:var(--accent);font-weight:600;}
+.about-divider{border:none;border-top:1px solid var(--border);margin:16px 0;}
+.about-meta{font-size:11px;color:var(--muted);line-height:1.7;}
+.about-meta span{display:inline-block;margin-right:16px;}
+
+/* INFO ICON & PANEL */
+.info-icon{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(144,202,249,.15);border:1px solid rgba(144,202,249,.35);color:rgba(144,202,249,.8);font-size:9px;font-weight:700;cursor:pointer;margin-left:6px;vertical-align:middle;transition:all .15s;flex-shrink:0;user-select:none;font-family:'Barlow Condensed',sans-serif;}
+.info-icon:hover{background:rgba(144,202,249,.3);border-color:rgba(144,202,249,.7);color:#fff;}
+.info-panel{position:fixed;z-index:10000;background:rgba(13,17,23,.98);border:1px solid rgba(144,202,249,.35);border-radius:10px;padding:16px 18px;width:300px;box-shadow:0 12px 40px rgba(0,0,0,.7);display:none;pointer-events:auto;}
+.info-panel.visible{display:block;}
+.info-panel-title{font-family:'Barlow Condensed',sans-serif;letter-spacing:.06em;font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;}
+.info-close{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;color:var(--muted);transition:all .15s;flex-shrink:0;}
+.info-close:hover{background:rgba(255,255,255,.18);color:var(--text);}
+.info-body{font-size:11.5px;color:rgba(221,228,238,.8);line-height:1.65;}
+.info-body b{color:var(--accent);font-weight:600;}
+.info-body .info-note{margin-top:10px;padding:8px 10px;background:rgba(144,202,249,.07);border-left:2px solid rgba(144,202,249,.4);border-radius:0 4px 4px 0;font-size:10.5px;color:var(--muted);line-height:1.6;}
+.info-body .info-formula{margin:8px 0;padding:7px 10px;background:rgba(0,0,0,.3);border-radius:5px;font-family:'Barlow Condensed',sans-serif;font-size:11px;color:rgba(144,202,249,.9);text-align:center;}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+
+<!-- FINDINGS MODAL -->
+<div class="about-overlay" id="findings-overlay" onclick="if(event.target===this)this.classList.remove('visible')">
+  <div class="about-modal" style="max-width:640px;max-height:88vh;overflow-y:auto;">
+    <div class="about-modal-title">
+      Key Findings · Italian Language Teaching in New England, 2020–2024
+      <div class="about-modal-close" onclick="document.getElementById('findings-overlay').classList.remove('visible')">✕</div>
+    </div>
+    <div class="about-modal-body">
+
+      <p><b>Overall growth with a post-pandemic inflection.</b> Total enrollment across New England grew from 14,013 students in 2020–21 to 16,183 in 2023–24, a net increase of <b>+15.5%</b> over four years. Growth was not linear: enrollment declined to 13,564 in 2021–22 — likely reflecting residual disruption from the COVID-19 pandemic — before recovering strongly in the two subsequent years.</p>
+
+      <p><b>Rhode Island leads on a population-adjusted basis.</b> While Massachusetts accounts for the largest absolute enrollment, Rhode Island records by far the highest intensity when enrollment is normalised by population — reaching <b>431 students per 100,000 inhabitants</b> in 2023–24, more than three times the Massachusetts rate of 135. This reflects longstanding Italian-heritage communities in the Providence–Cranston–Johnston corridor and a dense network of public schools with established Italian programmes. The sharp increase observed in 2023–24 also partly reflects expanded census coverage, but the underlying intensity predates that expansion.</p>
+
+      <p><b>Middle school enrolment is the primary engine of growth.</b> The most structurally significant trend is the sharp rise in secondary I grade (middle school) enrolment, from 1,613 students in 2020–21 to 4,160 in 2023–24 — an increase of <b>+158%</b>. Consistently large contributors include the Wilmington, Cranston, and Medford public school systems, as well as the Eliot K-8 Innovation School in Boston. High school enrolment, by contrast, has remained essentially flat over the same period. If this cohort effect persists, it represents a meaningful future pipeline into secondary and university-level Italian.</p>
+
+      <p><b>Primary school programmes have largely disappeared from the census record.</b> The reverse of the middle school story is the near-total collapse of primary school reporting: from 1,236 students in 2020–21 to just 196 in 2023–24, a <b>decline of 84%</b>. Several large Medford-area primary programmes — each enrolling over 300 students in the baseline year — ceased to appear in subsequent survey waves. Whether this reflects actual programme discontinuation or a withdrawal from census participation is not determinable from the available data, but it represents the most concerning signal in the longitudinal record. Primary-level instruction offers the greatest potential for deep language acquisition, and the loss of visibility over this segment warrants direct follow-up.</p>
+
+      <p><b>The university sector has recovered but is increasingly concentrated.</b> University enrolment declined from 4,607 to 4,136 between 2020–21 and 2021–22, before recovering to approximately 4,967 by 2023–24. However, the distribution is highly uneven: the five largest programmes — the University of New Hampshire, Boston College, UMass Amherst, the University of Rhode Island, and Dartmouth College — consistently account for roughly half of all university enrolment. Several smaller programmes reported zero students or did not submit data by 2023–24, suggesting that the recovery is concentrated in already well-established departments while peripheral programmes contract.</p>
+
+      <p><b>New Hampshire records the steepest proportional growth.</b> Starting from a small baseline of 490 students in 2020–21, New Hampshire reached 1,490 students by 2022–23 before settling at 1,292 in 2023–24, representing a <b>+164% increase in enrolment intensity</b> over the period. This growth is driven almost entirely by the university sector — principally the University of New Hampshire (Durham) and Dartmouth College (Hanover). At the county level, Grafton County (home to Dartmouth) records one of the highest per-100,000 rates in the region.</p>
+
+      <p><b>The informal learning sector shows consistent, uninterrupted growth.</b> Enrolment in language schools, cultural associations, and adult education programmes — the "other learning contexts" sector — grew every year without exception, from 627 students in 2020–21 to 906 in 2023–24 (<b>+44.5%</b>). Key contributors include the Cambridge Center for Adult Education, the Vermont Italian Cultural Association, Scuola PIB, and the Pirandello Italian Language Center. This steady progression, independent of institutional budget cycles, reflects durable community-driven demand for Italian language instruction.</p>
+
+      <p><b>Maine is the only state in consistent decline.</b> Maine's reported enrolment fell from 310 to 153 students over the four-year period — a reduction of approximately 50% — and is the only state in which the per-100,000 rate declined continuously year on year (from 22.6 to 11.0). With only four reporting institutions, all at the university or community level, and Bowdoin College reporting no students in 2023–24, the state's Italian language presence has become increasingly fragile.</p>
+
+    </div>
+    <hr class="about-divider">
+    <div class="about-meta">
+      <span>📊 Based on consulate census data, AA 2020–21 to 2023–24</span>
+      <span>⚠ ~10% of institutions did not report student counts in later years</span>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT MODAL -->
+<div class="about-overlay" id="about-overlay" onclick="if(event.target===this)this.classList.remove('visible')">
+  <div class="about-modal">
+    <div class="about-modal-title">
+      About this Dashboard
+      <div class="about-modal-close" onclick="document.getElementById('about-overlay').classList.remove('visible')">✕</div>
+    </div>
+    <div class="about-modal-body">
+      <p>The <b>Italian Consulate General in Boston</b> conducts an annual statistical survey on the spread of Italian language teaching in K-12 schools, universities, and other learning contexts across New England — specifically in <b>Massachusetts, Maine, New Hampshire, Rhode Island, and Vermont</b>.</p>
+      <p>The survey is required by the <b>Ministry of Foreign Affairs and International Cooperation (MAECI)</b> as part of its ongoing monitoring of Italian language instruction abroad.</p>
+      <p>This dashboard visualises four academic years of census data (<b>2020–21 through 2023–24</b>), covering enrollment, teacher counts, and geographic distribution across three sectors: K-12 schools, universities, and other learning contexts such as language schools and cultural associations.</p>
+    </div>
+    <hr class="about-divider">
+    <div class="about-meta">
+      <span>📊 Data: Italian Consulate General, Boston</span>
+      <span>🗺 Population: US Census Bureau Vintage 2023</span><br>
+      <span>📅 Coverage: AA 2020–21 → 2023–24</span>
+      <span>🌍 Region: New England (MA · RI · NH · VT · ME)</span>
+    </div>
+  </div>
+</div>
+
+<!-- INFO PANELS -->
+<div class="info-panel" id="info-raw">
+  <div class="info-panel-title">
+    Total Students Enrolled
+    <div class="info-close" onclick="closeInfo('raw')">✕</div>
+  </div>
+  <div class="info-body">
+    This figure counts the <b>total number of students enrolled</b> in Italian language programs reported to the Italian Consulate General in Boston across three sectors:
+    <br><br>
+    <b style="color:#3b82f6">K-12 Schools</b> — public and private schools at primary and secondary level offering Italian.<br>
+    <b style="color:#ef4444">Universities</b> — courses and programs at degree-granting institutions.<br>
+    <b style="color:#f59e0b">Other contexts</b> — language schools, cultural associations, adult education programs, and similar.
+    <br><br>
+    Totals reflect only institutions that <b>submitted enrollment data</b>. Approximately 10% of reporting institutions did not provide student counts — actual enrollment is therefore higher than shown.
+    <div class="info-note">⚠ Data source: Italian Consulate General, Boston · Academic years 2020–21 to 2023–24 · Coverage: MA, RI, NH, VT, ME</div>
+  </div>
+</div>
+
+<div class="info-panel" id="info-per100k">
+  <div class="info-panel-title">
+    Students per 100,000 Inhabitants
+    <div class="info-close" onclick="closeInfo('per100k')">✕</div>
+  </div>
+  <div class="info-body">
+    This is a <b>normalized intensity measure</b> that corrects for differences in population size between states, making them directly comparable.
+    <div class="info-formula">students enrolled ÷ population × 100,000</div>
+    <b>State-level rate</b> uses the full state population as the denominator (US Census Bureau Vintage 2023 annual estimates, July 1, midpointed per academic year).
+    <br><br>
+    <b>City-level rate</b> uses the <b>county population</b> of the county in which the city is located — a better approximation of the local population served than the state total. The county name is shown in the hover tooltip.
+    <br><br>
+    For example: Hanover NH (home to Dartmouth College) sits in <b>Grafton County</b> (~90,000 people), yielding a rate of ~310 per 100k — very different from using New Hampshire's full 1.4 million population (~20/100k).
+    <div class="info-note">Population source: US Census Bureau Vintage 2023 · County-level estimates · Academic year = midpoint of two surrounding July 1 figures</div>
+  </div>
+</div>
+
+<div class="header">
+  <div>
+    <div class="header-title">Italian Language Teaching<br><span>in New England</span></div>
+    <div class="header-sub">Consulate General · Boston &nbsp;·&nbsp; Academic Years 2020–21 to 2023–24 &nbsp;·&nbsp; New England</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:var(--k12)"></div>K-12 Schools</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--univ)"></div>Universities</div>
+      <div class="leg"><div class="leg-dot" style="background:var(--altri)"></div>Other contexts</div>
+    </div>
+    <button class="about-btn" onclick="document.getElementById('findings-overlay').classList.add('visible')">Key Findings</button>
+    <button class="about-btn" onclick="document.getElementById('about-overlay').classList.add('visible')">About</button>
+  </div>
+</div>
+
+<div class="tabs" id="tabBar"></div>
+<div id="pages"></div>
+
+<script>
+const D = {"years":["2020-21","2021-22","2022-23","2023-24"],"states":["MA","RI","NH","VT","ME"],"stateNames":{"MA":"Massachusetts","RI":"Rhode Island","NH":"New Hampshire","VT":"Vermont","ME":"Maine"},"cityData":{"MA":{"2020-21":[{"city":"Agawam","lat":42.07,"lon":-72.622,"total":120,"k12":120,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Agawam High School"]},{"city":"Amherst","lat":42.377,"lon":-72.519,"total":390,"k12":0,"univ":390,"altri":0,"teachers":7,"t_k12":0,"t_univ":7,"t_altri":0,"insts":["UMass Amherst"]},{"city":"Arlington","lat":42.415,"lon":-71.157,"total":158,"k12":158,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Arlington Catholic High School","Arlington High School"]},{"city":"Billerica","lat":42.559,"lon":-71.269,"total":199,"k12":199,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Billerica Memorial High School"]},{"city":"Boston","lat":42.36,"lon":-71.058,"total":1955,"k12":1336,"univ":489,"altri":130,"teachers":28,"t_k12":7,"t_univ":14,"t_altri":7,"insts":["Boston Latin School\n Boston, MA","East Boston High School","Eliot K-8 Innovation School","St. John School","Boston University","Emmanuel College","Northeastern University","Simmons University"]},{"city":"Boxford","lat":42.662,"lon":-71.001,"total":15,"k12":0,"univ":0,"altri":15,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["GLOBAL CHILD INC."]},{"city":"Bridgewater","lat":41.99,"lon":-70.975,"total":30,"k12":0,"univ":30,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bridgewater State University"]},{"city":"Brookline","lat":42.332,"lon":-71.121,"total":12,"k12":0,"univ":0,"altri":12,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["PUBLIC LIBRARY OF BROOKLINE"]},{"city":"Burlington","lat":42.505,"lon":-71.196,"total":121,"k12":121,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Burligton High School"]},{"city":"Cambridge","lat":42.374,"lon":-71.106,"total":468,"k12":120,"univ":122,"altri":226,"teachers":22,"t_k12":11,"t_univ":7,"t_altri":4,"insts":["Scuola Piccoli Italiani Di Boston","Harvard University","CAMBRIDGE CENTER FOR ADULT EDUCATION"]},{"city":"Everett","lat":42.408,"lon":-71.054,"total":250,"k12":250,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Everett High School"]},{"city":"Fitchburg","lat":42.583,"lon":-71.803,"total":25,"k12":0,"univ":25,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Fitchburg State University"]},{"city":"Gloucester","lat":42.616,"lon":-70.661,"total":188,"k12":188,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Gloucester High School"]},{"city":"Haverhill","lat":42.776,"lon":-71.077,"total":150,"k12":150,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Haverhill High School"]},{"city":"Leominster","lat":42.525,"lon":-71.76,"total":218,"k12":218,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Leominster High School","Saint Anna Catholic School"]},{"city":"Lexington","lat":42.447,"lon":-71.224,"total":106,"k12":106,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Lexington High School"]},{"city":"Lowell","lat":42.64,"lon":-71.316,"total":262,"k12":0,"univ":262,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["UMass Lowell"]},{"city":"Lynnfield","lat":42.529,"lon":-71.041,"total":58,"k12":58,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Lynnfield High School"]},{"city":"Malden","lat":42.426,"lon":-71.067,"total":189,"k12":189,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Malden Catholic High School","Malden High School"]},{"city":"Medford","lat":42.419,"lon":-71.107,"total":636,"k12":511,"univ":125,"altri":0,"teachers":11,"t_k12":8,"t_univ":3,"t_altri":0,"insts":["Andrews Middle School","McGlynn Middle School","Medford High School","Tufts University"]},{"city":"Melrose","lat":42.456,"lon":-71.066,"total":140,"k12":140,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Melrose High School"]},{"city":"Newton","lat":42.337,"lon":-71.209,"total":767,"k12":346,"univ":421,"altri":0,"teachers":17,"t_k12":5,"t_univ":12,"t_altri":0,"insts":["Bigelow Middle School","F A Day Middle School","Newton North High School","Boston College"]},{"city":"North Andover","lat":42.698,"lon":-71.132,"total":100,"k12":0,"univ":100,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Merrimack College"]},{"city":"Northampton","lat":42.325,"lon":-72.634,"total":260,"k12":0,"univ":260,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Smith College"]},{"city":"Pittsfield","lat":42.45,"lon":-73.247,"total":223,"k12":223,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Herberg Middle School","Pittsfield High School","Reid Middle School","Taconic High School"]},{"city":"Quincy","lat":42.252,"lon":-71.002,"total":49,"k12":49,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["North Quincy High School"]},{"city":"Revere","lat":42.408,"lon":-71.012,"total":215,"k12":215,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Revere High School"]},{"city":"Salem","lat":42.519,"lon":-70.896,"total":71,"k12":0,"univ":71,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Salem State University"]},{"city":"Somerville","lat":42.387,"lon":-71.1,"total":85,"k12":85,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Somerville High School"]},{"city":"South Hadley","lat":42.256,"lon":-72.576,"total":197,"k12":0,"univ":197,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Mount Holyoke College"]},{"city":"Springfield","lat":42.101,"lon":-72.59,"total":80,"k12":80,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Central High School"]},{"city":"Stoneham","lat":42.478,"lon":-71.1,"total":120,"k12":120,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Stoneham High School"]},{"city":"Wakefield","lat":42.5,"lon":-71.072,"total":76,"k12":76,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Wakefield Memorial High School"]},{"city":"Waltham","lat":42.376,"lon":-71.236,"total":590,"k12":455,"univ":120,"altri":15,"teachers":15,"t_k12":9,"t_univ":4,"t_altri":2,"insts":["John F. Kennedy Middle School","McDevitt Middle School","Our Lady's Academy","Waltham High School","Bentley University","Brandeis University","PICCOLA ITALIA PREESCHOOL"]},{"city":"Watertown","lat":42.366,"lon":-71.183,"total":175,"k12":175,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Watertown High School"]},{"city":"Wellesley","lat":42.297,"lon":-71.293,"total":68,"k12":0,"univ":68,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Wellesley College"]},{"city":"West Springfield","lat":42.103,"lon":-72.651,"total":107,"k12":107,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["West Springfield High School"]},{"city":"Wilmington","lat":42.545,"lon":-71.173,"total":220,"k12":220,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Wilmington High School","Wilmington Middle School"]},{"city":"Winchester","lat":42.453,"lon":-71.137,"total":360,"k12":360,"univ":0,"altri":0,"teachers":6,"t_k12":6,"t_univ":0,"t_altri":0,"insts":["McCall Middle School","Winchester High School"]},{"city":"Winthrop","lat":42.375,"lon":-70.985,"total":47,"k12":47,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Winthrop High School"]},{"city":"Woburn","lat":42.479,"lon":-71.152,"total":49,"k12":49,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Woburn Memorial High School"]},{"city":"Worcester","lat":42.262,"lon":-71.802,"total":212,"k12":0,"univ":212,"altri":0,"teachers":8,"t_k12":0,"t_univ":8,"t_altri":0,"insts":["Assumption College","College of the Holy Cross"]}],"2021-22":[{"city":"Agawam","lat":42.07,"lon":-72.622,"total":110,"k12":110,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Agawam High School"]},{"city":"Amherst","lat":42.377,"lon":-72.519,"total":193,"k12":0,"univ":193,"altri":0,"teachers":7,"t_k12":0,"t_univ":7,"t_altri":0,"insts":["UMass Amherst"]},{"city":"Arlington","lat":42.415,"lon":-71.157,"total":73,"k12":73,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Arlington High School"]},{"city":"Billerica","lat":42.559,"lon":-71.269,"total":206,"k12":206,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Billerica Memorial High School"]},{"city":"Boston","lat":42.36,"lon":-71.058,"total":2010,"k12":1272,"univ":484,"altri":254,"teachers":37,"t_k12":6,"t_univ":14,"t_altri":17,"insts":["Boston Latin","Eliot K-8 Innovation School","Saint John School","Boston University","Emmanuel College","Northeastern University","Simmons University","UMass Boston"]},{"city":"Boxford","lat":42.662,"lon":-71.001,"total":30,"k12":0,"univ":0,"altri":30,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["Global Child Inc"]},{"city":"Bridgewater","lat":41.99,"lon":-70.975,"total":30,"k12":0,"univ":30,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bridgewater"]},{"city":"Burlington","lat":42.505,"lon":-71.196,"total":94,"k12":94,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Burlington High School","Marshall Simonds Middle School"]},{"city":"Cambridge","lat":42.374,"lon":-71.106,"total":436,"k12":85,"univ":69,"altri":282,"teachers":24,"t_k12":1,"t_univ":7,"t_altri":16,"insts":["Our Lady's Academy","Harvard University","Cambridge Center for Adult Education","Public Library of Brookline","Scuola PIB"]},{"city":"Everett","lat":42.408,"lon":-71.054,"total":250,"k12":250,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Everett High School"]},{"city":"Fitchburg","lat":42.583,"lon":-71.803,"total":19,"k12":0,"univ":19,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Fitchburg State University"]},{"city":"Gloucester","lat":42.616,"lon":-70.661,"total":188,"k12":188,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Gloucester"]},{"city":"Haverhill","lat":42.776,"lon":-71.077,"total":125,"k12":125,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Haverhill High School"]},{"city":"Leominster","lat":42.525,"lon":-71.76,"total":263,"k12":263,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Leominster High School","St.Anna Catholic School"]},{"city":"Lexington","lat":42.447,"lon":-71.224,"total":115,"k12":115,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Lexington High School"]},{"city":"Lowell","lat":42.64,"lon":-71.316,"total":205,"k12":0,"univ":205,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["UMass Lowell"]},{"city":"Lynnfield","lat":42.529,"lon":-71.041,"total":80,"k12":80,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Lynnfield High School"]},{"city":"Malden","lat":42.426,"lon":-71.067,"total":266,"k12":266,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Malden Catholic School","Malden High School"]},{"city":"Medford","lat":42.419,"lon":-71.107,"total":428,"k12":263,"univ":165,"altri":0,"teachers":9,"t_k12":5,"t_univ":4,"t_altri":0,"insts":["Andrews Middle School","McGlynn Middle School","Medford High School","Tufts University"]},{"city":"Melrose","lat":42.456,"lon":-71.066,"total":130,"k12":130,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Melrose High School"]},{"city":"Milford","lat":42.14,"lon":-71.519,"total":240,"k12":240,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Milford High School"]},{"city":"Newton","lat":42.337,"lon":-71.209,"total":811,"k12":311,"univ":500,"altri":0,"teachers":15,"t_k12":5,"t_univ":10,"t_altri":0,"insts":["Bigelow Middle School","FA Day Middle School","Newton North High School","Boston College"]},{"city":"North Andover","lat":42.698,"lon":-71.132,"total":100,"k12":0,"univ":100,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Merrimack College"]},{"city":"Northampton","lat":42.325,"lon":-72.634,"total":250,"k12":0,"univ":250,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Smith College"]},{"city":"Pittsfield","lat":42.45,"lon":-73.247,"total":103,"k12":103,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Pittsflield High School","Reid Middle School High School","Taconic HS"]},{"city":"Revere","lat":42.408,"lon":-71.012,"total":192,"k12":192,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Revere High School"]},{"city":"Salem","lat":42.519,"lon":-70.896,"total":78,"k12":0,"univ":78,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Salem State University"]},{"city":"Somerville","lat":42.387,"lon":-71.1,"total":83,"k12":83,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Somerville High School"]},{"city":"South Hadley","lat":42.256,"lon":-72.576,"total":163,"k12":0,"univ":163,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Mount Holyoke College"]},{"city":"Springfield","lat":42.101,"lon":-72.59,"total":75,"k12":75,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Central High School"]},{"city":"Stoneham","lat":42.478,"lon":-71.1,"total":130,"k12":130,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Stoneham High School"]},{"city":"Wakefield","lat":42.5,"lon":-71.072,"total":90,"k12":90,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Wakefield Memorial High School"]},{"city":"Waltham","lat":42.376,"lon":-71.236,"total":415,"k12":281,"univ":120,"altri":14,"teachers":13,"t_k12":7,"t_univ":4,"t_altri":2,"insts":["John F. Kennedy Middle School","McDevitt Middle School","Waltham High School","Bentley University","Brandeis University","Piccola Italia Preschool"]},{"city":"Watertown","lat":42.366,"lon":-71.183,"total":172,"k12":172,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Watertown Public Schools (MS & HS)"]},{"city":"Wellesley","lat":42.297,"lon":-71.293,"total":76,"k12":0,"univ":76,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Wellesley College"]},{"city":"West Springfield","lat":42.103,"lon":-72.651,"total":89,"k12":89,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["West Springfield High School"]},{"city":"Wilmington","lat":42.545,"lon":-71.173,"total":390,"k12":390,"univ":0,"altri":0,"teachers":5,"t_k12":5,"t_univ":0,"t_altri":0,"insts":["Wilmington High School","Wilmington Middle School"]},{"city":"Winchester","lat":42.453,"lon":-71.137,"total":350,"k12":350,"univ":0,"altri":0,"teachers":6,"t_k12":6,"t_univ":0,"t_altri":0,"insts":["McCall Middle School","Winchester High School"]},{"city":"Winthrop","lat":42.375,"lon":-70.985,"total":50,"k12":50,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Winthrop High School"]},{"city":"Woburn","lat":42.479,"lon":-71.152,"total":40,"k12":40,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Woburn Memorial High School"]},{"city":"Worcester","lat":42.262,"lon":-71.802,"total":200,"k12":0,"univ":200,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Assumption University","College of the Holy Cross"]}],"2022-23":[{"city":"Agawam","lat":42.07,"lon":-72.622,"total":90,"k12":90,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Agawam High School"]},{"city":"Amherst","lat":42.377,"lon":-72.519,"total":200,"k12":0,"univ":200,"altri":0,"teachers":8,"t_k12":0,"t_univ":8,"t_altri":0,"insts":["UMass Amherst"]},{"city":"Arlington","lat":42.415,"lon":-71.157,"total":150,"k12":150,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Arlington Catholic High School","Arlington High School"]},{"city":"Billerica","lat":42.559,"lon":-71.269,"total":190,"k12":190,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Billerica Memorial High School"]},{"city":"Boston","lat":42.36,"lon":-71.058,"total":1969,"k12":1305,"univ":540,"altri":124,"teachers":31,"t_k12":7,"t_univ":15,"t_altri":9,"insts":["Boston Latin","Eliot K-8 Innovation School","Saint John School","Boston University","Emmanuel College","Northeastern University","Simmons University","UMass Boston"]},{"city":"Boxford","lat":42.662,"lon":-71.001,"total":30,"k12":0,"univ":0,"altri":30,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["Global Child Inc"]},{"city":"Bridgewater","lat":41.99,"lon":-70.975,"total":52,"k12":0,"univ":52,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bridgewater"]},{"city":"Burlington","lat":42.505,"lon":-71.196,"total":67,"k12":67,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Burlington High School","Marshall Simonds Middle School"]},{"city":"Cambridge","lat":42.374,"lon":-71.106,"total":632,"k12":96,"univ":160,"altri":376,"teachers":30,"t_k12":1,"t_univ":8,"t_altri":21,"insts":["Our Lady's Academy","Harvard University","Cambridge Center for Adult Education","Dante Alighieri Society of Massachusetts","Public Library of Brookline","Scuola PIB"]},{"city":"Everett","lat":42.408,"lon":-71.054,"total":300,"k12":300,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Everett High School"]},{"city":"Fitchburg","lat":42.583,"lon":-71.803,"total":43,"k12":0,"univ":43,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Fitchburg State University"]},{"city":"Gloucester","lat":42.616,"lon":-70.661,"total":131,"k12":131,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Gloucester"]},{"city":"Haverhill","lat":42.776,"lon":-71.077,"total":160,"k12":160,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Haverhill High School"]},{"city":"Leominster","lat":42.525,"lon":-71.76,"total":247,"k12":247,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Leominster High School","St.Anna Catholic School"]},{"city":"Lexington","lat":42.447,"lon":-71.224,"total":93,"k12":93,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Lexington High School"]},{"city":"Lowell","lat":42.64,"lon":-71.316,"total":100,"k12":0,"univ":100,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["UMass Lowell"]},{"city":"Lynnfield","lat":42.529,"lon":-71.041,"total":80,"k12":80,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Lynnfield High School"]},{"city":"Malden","lat":42.426,"lon":-71.067,"total":191,"k12":191,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Malden Catholic School","Malden High School"]},{"city":"Medford","lat":42.419,"lon":-71.107,"total":497,"k12":431,"univ":66,"altri":0,"teachers":13,"t_k12":9,"t_univ":4,"t_altri":0,"insts":["Andrews Middle School","McGlynn Middle School","Medford High School","Tufts University"]},{"city":"Melrose","lat":42.456,"lon":-71.066,"total":124,"k12":124,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Melrose High School"]},{"city":"Milford","lat":42.14,"lon":-71.519,"total":240,"k12":240,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Milford High School"]},{"city":"Newton","lat":42.337,"lon":-71.209,"total":602,"k12":353,"univ":249,"altri":0,"teachers":15,"t_k12":5,"t_univ":10,"t_altri":0,"insts":["Bigelow Middle School","FA Day Middle School","Newton North High School","Boston College"]},{"city":"North Andover","lat":42.698,"lon":-71.132,"total":75,"k12":0,"univ":75,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Merrimack College"]},{"city":"Northampton","lat":42.325,"lon":-72.634,"total":318,"k12":0,"univ":318,"altri":0,"teachers":7,"t_k12":0,"t_univ":7,"t_altri":0,"insts":["Smith College"]},{"city":"Pittsfield","lat":42.45,"lon":-73.247,"total":179,"k12":179,"univ":0,"altri":0,"teachers":5,"t_k12":5,"t_univ":0,"t_altri":0,"insts":["Herberg Middle School","Pittsflield High School","Reid Middle School High School","Taconic HS"]},{"city":"Revere","lat":42.408,"lon":-71.012,"total":154,"k12":154,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Revere High School"]},{"city":"Salem","lat":42.519,"lon":-70.896,"total":144,"k12":0,"univ":144,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Salem State University"]},{"city":"Somerville","lat":42.387,"lon":-71.1,"total":112,"k12":112,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Somerville High School"]},{"city":"South Hadley","lat":42.256,"lon":-72.576,"total":174,"k12":0,"univ":174,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Mount Holyoke College"]},{"city":"Springfield","lat":42.101,"lon":-72.59,"total":60,"k12":60,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Central High School"]},{"city":"Stoneham","lat":42.478,"lon":-71.1,"total":110,"k12":110,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Stoneham High School","Appian Club"]},{"city":"Wakefield","lat":42.5,"lon":-71.072,"total":85,"k12":85,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Wakefield Memorial High School"]},{"city":"Waltham","lat":42.376,"lon":-71.236,"total":622,"k12":448,"univ":160,"altri":14,"teachers":12,"t_k12":6,"t_univ":4,"t_altri":2,"insts":["John F. Kennedy Middle School","McDevitt Middle School","Waltham High School","Bentley University","Brandeis University","Piccola Italia Preschool"]},{"city":"Watertown","lat":42.366,"lon":-71.183,"total":150,"k12":150,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Watertown Public Schools (MS & HS)"]},{"city":"Wellesley","lat":42.297,"lon":-71.293,"total":150,"k12":0,"univ":150,"altri":0,"teachers":6,"t_k12":0,"t_univ":6,"t_altri":0,"insts":["Wellesley College"]},{"city":"West Springfield","lat":42.103,"lon":-72.651,"total":100,"k12":100,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["West Springfield High School"]},{"city":"Wilmington","lat":42.545,"lon":-71.173,"total":408,"k12":408,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Wilmington High School","Wilmington Middle School"]},{"city":"Winchester","lat":42.453,"lon":-71.137,"total":380,"k12":380,"univ":0,"altri":0,"teachers":5,"t_k12":5,"t_univ":0,"t_altri":0,"insts":["McCall Middle School","Winchester High School"]},{"city":"Winthrop","lat":42.375,"lon":-70.985,"total":100,"k12":100,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Winthrop High School"]},{"city":"Woburn","lat":42.479,"lon":-71.152,"total":64,"k12":64,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Woburn Memorial High School"]},{"city":"Worcester","lat":42.262,"lon":-71.802,"total":192,"k12":0,"univ":192,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Assumption University","College of the Holy Cross"]}],"2023-24":[{"city":"Agawam","lat":42.07,"lon":-72.622,"total":90,"k12":90,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Agawam High School"]},{"city":"Amherst","lat":42.377,"lon":-72.519,"total":451,"k12":0,"univ":451,"altri":0,"teachers":8,"t_k12":0,"t_univ":8,"t_altri":0,"insts":["UMass Amherst"]},{"city":"Arlington","lat":42.415,"lon":-71.157,"total":184,"k12":184,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Arlington High School","Alington Catholic High School"]},{"city":"Billerica","lat":42.559,"lon":-71.269,"total":170,"k12":170,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Locke Middle School","Billerica Memorial High School"]},{"city":"Boston","lat":42.36,"lon":-71.058,"total":1697,"k12":1264,"univ":313,"altri":120,"teachers":22,"t_k12":7,"t_univ":13,"t_altri":2,"insts":["Eliot K-8 Innovation School","St. John School","Boston Latin School","East Boston High School","Boston University","Emmanuel College","Northeastern University","Simmons University"]},{"city":"Boxford","lat":42.662,"lon":-71.001,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Global Child Inc"]},{"city":"Bridgewater","lat":41.99,"lon":-70.975,"total":35,"k12":0,"univ":35,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bridgewater State University"]},{"city":"Burlington","lat":42.505,"lon":-71.196,"total":55,"k12":55,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Burlington High School"]},{"city":"Cambridge","lat":42.374,"lon":-71.106,"total":646,"k12":96,"univ":120,"altri":430,"teachers":27,"t_k12":1,"t_univ":6,"t_altri":20,"insts":["Our Lady's Academy","Harvard University","Cambridge Center for Adult Education","Dante Alighieri Society of Massachusetts","Public Library of Brookline","Scuola PIB"]},{"city":"Canton","lat":42.158,"lon":-71.095,"total":45,"k12":45,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Canton High School"]},{"city":"Easton","lat":42.022,"lon":-71.096,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Stonehill College"]},{"city":"Everett","lat":42.408,"lon":-71.054,"total":250,"k12":250,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Everett High School"]},{"city":"Fitchburg","lat":42.583,"lon":-71.803,"total":64,"k12":0,"univ":64,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Fitchburg State University"]},{"city":"Framingham","lat":42.279,"lon":-71.416,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Framingham High School"]},{"city":"Gloucester","lat":42.616,"lon":-70.661,"total":125,"k12":125,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Gloucester High School"]},{"city":"Haverhill","lat":42.776,"lon":-71.077,"total":150,"k12":150,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Haverhill High School"]},{"city":"Leominster","lat":42.525,"lon":-71.76,"total":100,"k12":100,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["St.Anna Catholic School","Leominster High School"]},{"city":"Lexington","lat":42.447,"lon":-71.224,"total":87,"k12":87,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Lexington High School"]},{"city":"Lowell","lat":42.64,"lon":-71.316,"total":0,"k12":0,"univ":0,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["UMass Lowell"]},{"city":"Lynnfield","lat":42.529,"lon":-71.041,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Lynnfield High School"]},{"city":"Malden","lat":42.426,"lon":-71.067,"total":257,"k12":257,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Malden Catholic School","Malden High School"]},{"city":"Medford","lat":42.419,"lon":-71.107,"total":530,"k12":310,"univ":220,"altri":0,"teachers":8,"t_k12":3,"t_univ":5,"t_altri":0,"insts":["Andrews Middle School","McGlynn Middle School","Medford High School","Tufts University"]},{"city":"Melrose","lat":42.456,"lon":-71.066,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Melrose High School"]},{"city":"Methuen","lat":42.726,"lon":-71.191,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Methuen High School"]},{"city":"Milford","lat":42.14,"lon":-71.519,"total":220,"k12":220,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Milford High School"]},{"city":"Newton","lat":42.337,"lon":-71.209,"total":827,"k12":337,"univ":490,"altri":0,"teachers":16,"t_k12":6,"t_univ":10,"t_altri":0,"insts":["Bigelow Middle School","FA Day Middle School","Newton North High School","Boston College"]},{"city":"North Andover","lat":42.698,"lon":-71.132,"total":100,"k12":0,"univ":100,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Merrimack College"]},{"city":"Northampton","lat":42.325,"lon":-72.634,"total":133,"k12":0,"univ":133,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Smith College"]},{"city":"Norton","lat":41.97,"lon":-71.185,"total":145,"k12":0,"univ":145,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Wheaton College"]},{"city":"Pittsfield","lat":42.45,"lon":-73.247,"total":96,"k12":96,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Herberg Middle School","Pittsflield High School"]},{"city":"Quincy","lat":42.252,"lon":-71.002,"total":68,"k12":68,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["North Quincy High School","Quincy High School"]},{"city":"Revere","lat":42.408,"lon":-71.012,"total":83,"k12":83,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Revere High School"]},{"city":"Salem","lat":42.519,"lon":-70.896,"total":30,"k12":0,"univ":30,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Salem State University"]},{"city":"Somerville","lat":42.387,"lon":-71.1,"total":101,"k12":101,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Somerville High School"]},{"city":"South Hadley","lat":42.256,"lon":-72.576,"total":194,"k12":0,"univ":194,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Mount Holyoke College"]},{"city":"Springfield","lat":42.101,"lon":-72.59,"total":210,"k12":210,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Springfield Central High School","Central High School"]},{"city":"Stoneham","lat":42.478,"lon":-71.1,"total":205,"k12":205,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Stoneham Middle School","Stoneham High School"]},{"city":"Wakefield","lat":42.5,"lon":-71.072,"total":399,"k12":399,"univ":0,"altri":0,"teachers":5,"t_k12":5,"t_univ":0,"t_altri":0,"insts":["Northeast Metro Tech High School","Wakefield Memorial High School"]},{"city":"Waltham","lat":42.376,"lon":-71.236,"total":210,"k12":90,"univ":100,"altri":20,"teachers":4,"t_k12":1,"t_univ":1,"t_altri":2,"insts":["John F. Kennedy Middle School","McDevitt Middle School","Waltham High School","Bentley University","Brandeis University","Piccola Italia Preschool"]},{"city":"Watertown","lat":42.366,"lon":-71.183,"total":200,"k12":200,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Watertown Public Schools (MS & HS)"]},{"city":"Wellesley","lat":42.297,"lon":-71.293,"total":100,"k12":0,"univ":100,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Wellesley College"]},{"city":"West Springfield","lat":42.103,"lon":-72.651,"total":106,"k12":106,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["West Springfield High School"]},{"city":"Williamstown","lat":42.712,"lon":-73.204,"total":25,"k12":0,"univ":25,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Williams College"]},{"city":"Wilmington","lat":42.545,"lon":-71.173,"total":260,"k12":260,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Wilmington Middle School","Wilmington High School"]},{"city":"Winchester","lat":42.453,"lon":-71.137,"total":330,"k12":330,"univ":0,"altri":0,"teachers":5,"t_k12":5,"t_univ":0,"t_altri":0,"insts":["McCall Middle School","Winchester High School"]},{"city":"Winthrop","lat":42.375,"lon":-70.985,"total":150,"k12":150,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Winthrop High School"]},{"city":"Woburn","lat":42.479,"lon":-71.152,"total":76,"k12":76,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Woburn Memorial High School"]},{"city":"Worcester","lat":42.262,"lon":-71.802,"total":210,"k12":0,"univ":210,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Assumption University","College of the Holy Cross"]}]},"RI":{"2020-21":[{"city":"Coventry","lat":41.7,"lon":-71.663,"total":101,"k12":101,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Coventry High School"]},{"city":"Cranston","lat":41.78,"lon":-71.438,"total":346,"k12":346,"univ":0,"altri":0,"teachers":8,"t_k12":8,"t_univ":0,"t_altri":0,"insts":["Cranston Public Schools (High school and Middle school)"]},{"city":"Johnston","lat":41.83,"lon":-71.502,"total":289,"k12":289,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Nicolas A. Ferri Midddle School"]},{"city":"Narragansett","lat":41.432,"lon":-71.462,"total":30,"k12":30,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Narragansett High School"]},{"city":"North Providence","lat":41.862,"lon":-71.464,"total":190,"k12":190,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Dr. Edward A. Ricci Middle School","North Providence High School"]},{"city":"Providence","lat":41.824,"lon":-71.412,"total":758,"k12":465,"univ":293,"altri":0,"teachers":20,"t_k12":6,"t_univ":14,"t_altri":0,"insts":["Classical High School","Esek Hopkins Middle School","Hope High School","La Salle Academy","Nathan Bishop Middle School","Brown University","Providence College","Rhode Island College"]},{"city":"Richmond","lat":41.481,"lon":-71.666,"total":62,"k12":62,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Chariho High School"]},{"city":"Riverside","lat":41.764,"lon":-71.37,"total":60,"k12":60,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Saint Mary's Academy - Bay View"]},{"city":"South Kingstown","lat":41.444,"lon":-71.529,"total":593,"k12":113,"univ":480,"altri":0,"teachers":10,"t_k12":3,"t_univ":7,"t_altri":0,"insts":["South Kingstown High School","The Prout School","University of Rhode Island"]},{"city":"Warwick","lat":41.7,"lon":-71.42,"total":269,"k12":269,"univ":0,"altri":0,"teachers":7,"t_k12":7,"t_univ":0,"t_altri":0,"insts":["Bishop Hendricken High School","Pilgrim High School","Warwick Veterans Memorial","Winman Middle School"]},{"city":"West Warwick","lat":41.701,"lon":-71.523,"total":158,"k12":158,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["John F. Deering Middle School","West Warwick High School"]},{"city":"Westerly","lat":41.377,"lon":-71.827,"total":200,"k12":200,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Westerly Middle School","Westerly High School"]}],"2021-22":[{"city":"Coventry","lat":41.7,"lon":-71.663,"total":130,"k12":130,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Coventry High School"]},{"city":"Cranston","lat":41.78,"lon":-71.438,"total":596,"k12":596,"univ":0,"altri":0,"teachers":11,"t_k12":11,"t_univ":0,"t_altri":0,"insts":["Cranston HS West","Cranston Public Schools","Western Hills Middle School"]},{"city":"Johnston","lat":41.83,"lon":-71.502,"total":289,"k12":289,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Nicholas A. Ferri"]},{"city":"Narragansett","lat":41.432,"lon":-71.462,"total":30,"k12":30,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Narragansett High School"]},{"city":"Providence","lat":41.824,"lon":-71.412,"total":982,"k12":763,"univ":204,"altri":15,"teachers":24,"t_k12":10,"t_univ":13,"t_altri":1,"insts":["Classical High School","Esek Hopkins Middle School","Hope High School","La Salle Academy","Nathan Bishop MS","North Providence High School","Brown University","Providence College"]},{"city":"Richmond","lat":41.481,"lon":-71.666,"total":58,"k12":58,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Chariho Regional High School"]},{"city":"Riverside","lat":41.764,"lon":-71.37,"total":36,"k12":36,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["St. Mary Academy Bay View"]},{"city":"South Kingstown","lat":41.444,"lon":-71.529,"total":329,"k12":126,"univ":203,"altri":0,"teachers":10,"t_k12":3,"t_univ":7,"t_altri":0,"insts":["South Kingstown High School","The Prout School","University of Rhode Island"]},{"city":"Warwick","lat":41.7,"lon":-71.42,"total":175,"k12":175,"univ":0,"altri":0,"teachers":6,"t_k12":6,"t_univ":0,"t_altri":0,"insts":["Bishop Hendricken High School","Pilgrim High School","Winman Middle School"]},{"city":"West Warwick","lat":41.701,"lon":-71.523,"total":108,"k12":108,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["West Warwick High School"]},{"city":"Westerly","lat":41.377,"lon":-71.827,"total":200,"k12":200,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Westerly Public Schools-Middle and High"]}],"2022-23":[{"city":"Coventry","lat":41.7,"lon":-71.663,"total":172,"k12":172,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Coventry High School"]},{"city":"Cranston","lat":41.78,"lon":-71.438,"total":712,"k12":712,"univ":0,"altri":0,"teachers":11,"t_k12":11,"t_univ":0,"t_altri":0,"insts":["Cranston HS West","Cranston Public Schools","Western Hills Middle School"]},{"city":"Johnston","lat":41.83,"lon":-71.502,"total":244,"k12":244,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Nicholas A. Ferri"]},{"city":"Narragansett","lat":41.432,"lon":-71.462,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Narragansett High School"]},{"city":"Newport","lat":41.49,"lon":-71.313,"total":109,"k12":0,"univ":109,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Salve Regina University"]},{"city":"Providence","lat":41.824,"lon":-71.412,"total":642,"k12":513,"univ":96,"altri":33,"teachers":16,"t_k12":10,"t_univ":5,"t_altri":1,"insts":["Classical High School","Esek Hopkins Middle School","Hope High School","La Salle Academy","Nathan Bishop MS","North Providence High School","Brown University","Providence College"]},{"city":"Richmond","lat":41.481,"lon":-71.666,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Chariho Regional High School"]},{"city":"Riverside","lat":41.764,"lon":-71.37,"total":36,"k12":36,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["St. Mary Academy Bay View"]},{"city":"South Kingstown","lat":41.444,"lon":-71.529,"total":617,"k12":133,"univ":484,"altri":0,"teachers":9,"t_k12":3,"t_univ":6,"t_altri":0,"insts":["Monsignor Clarke School","South Kingstown High School","The Prout School","University of Rhode Island"]},{"city":"Warwick","lat":41.7,"lon":-71.42,"total":155,"k12":155,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Bishop Hendricken High School","Pilgrim High School","Winman Middle School"]},{"city":"West Warwick","lat":41.701,"lon":-71.523,"total":106,"k12":106,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["West Warwick High School"]},{"city":"Westerly","lat":41.377,"lon":-71.827,"total":113,"k12":113,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Westerly Public Schools-Middle and High"]}],"2023-24":[{"city":"Coventry","lat":41.7,"lon":-71.663,"total":363,"k12":363,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Alan Shawn Feinstein Middle School of Coventry","Coventry High School"]},{"city":"Cranston","lat":41.78,"lon":-71.438,"total":1007,"k12":1007,"univ":0,"altri":0,"teachers":13,"t_k12":13,"t_univ":0,"t_altri":0,"insts":["Hope Highlands Middle School","Hugh B. Bain Middle School","Western Hills Middle School","Cranston HS East","Cranston HS West","Cranston Public Schools","Passport to Languages"]},{"city":"Johnston","lat":41.83,"lon":-71.502,"total":463,"k12":463,"univ":0,"altri":0,"teachers":3,"t_k12":3,"t_univ":0,"t_altri":0,"insts":["Nicholas A. Ferri","Johnston Senior High Schools"]},{"city":"Narragansett","lat":41.432,"lon":-71.462,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Narragansett High School"]},{"city":"Newport","lat":41.49,"lon":-71.313,"total":220,"k12":0,"univ":220,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Salve Regina University"]},{"city":"North Providence","lat":41.862,"lon":-71.464,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Birchwood Middle School","Dr. Edward Ricci Middle School"]},{"city":"Providence","lat":41.824,"lon":-71.412,"total":774,"k12":607,"univ":167,"altri":0,"teachers":15,"t_k12":8,"t_univ":7,"t_altri":0,"insts":["Nathan Bishop MS","Classical High School","Esek Hopkins Middle School","Hope High School","La Salle Academy","Moses Brown School","North Providence High School","Brown University"]},{"city":"Richmond","lat":41.481,"lon":-71.666,"total":74,"k12":74,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Chariho Regional High School"]},{"city":"Riverside","lat":41.764,"lon":-71.37,"total":33,"k12":33,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["St. Mary Academy Bay View"]},{"city":"Smithfield","lat":41.903,"lon":-71.549,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Bryant University"]},{"city":"South Kingstown","lat":41.444,"lon":-71.529,"total":726,"k12":296,"univ":430,"altri":0,"teachers":10,"t_k12":4,"t_univ":6,"t_altri":0,"insts":["Monsignor Clarke School","South Kingstown High School","The Prout School","University of Rhode Island"]},{"city":"Warwick","lat":41.7,"lon":-71.42,"total":329,"k12":228,"univ":0,"altri":101,"teachers":6,"t_k12":4,"t_univ":0,"t_altri":2,"insts":["Warwick Veterans Memorial MS","Winman Middle School","Bishop Hendricken High School","Pilgrim High School","Toll Gate High School","Community College of Rhode Island"]},{"city":"West Warwick","lat":41.701,"lon":-71.523,"total":420,"k12":420,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["John F. Deering Middle School","West Warwick High School"]},{"city":"Westerly","lat":41.377,"lon":-71.827,"total":325,"k12":325,"univ":0,"altri":0,"teachers":4,"t_k12":4,"t_univ":0,"t_altri":0,"insts":["Westerly Middle School","Westerly High School"]}]},"NH":{"2020-21":[{"city":"Durham","lat":43.135,"lon":-70.924,"total":300,"k12":0,"univ":300,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["University of New Hempshir"]},{"city":"Exeter","lat":42.981,"lon":-70.948,"total":15,"k12":0,"univ":0,"altri":15,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["EXETER ADULT EDUCATION"]},{"city":"Hanover","lat":43.703,"lon":-72.289,"total":150,"k12":0,"univ":150,"altri":0,"teachers":7,"t_k12":0,"t_univ":7,"t_altri":0,"insts":["Dartmouth College"]},{"city":"Portsmouth","lat":43.072,"lon":-70.762,"total":25,"k12":25,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Portsmouth High School"]}],"2021-22":[{"city":"Durham","lat":43.135,"lon":-70.924,"total":372,"k12":0,"univ":372,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["University of New Hampshire"]},{"city":"Exeter","lat":42.981,"lon":-70.948,"total":15,"k12":0,"univ":0,"altri":15,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Exeter Adult Education"]},{"city":"Hanover","lat":43.703,"lon":-72.289,"total":250,"k12":0,"univ":250,"altri":0,"teachers":7,"t_k12":0,"t_univ":7,"t_altri":0,"insts":["Dartmouth College"]},{"city":"Portsmouth","lat":43.072,"lon":-70.762,"total":25,"k12":25,"univ":0,"altri":0,"teachers":1,"t_k12":1,"t_univ":0,"t_altri":0,"insts":["Portsmouth High School"]}],"2022-23":[{"city":"Durham","lat":43.135,"lon":-70.924,"total":640,"k12":0,"univ":640,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["University of New Hampshire"]},{"city":"Exeter","lat":42.981,"lon":-70.948,"total":32,"k12":0,"univ":0,"altri":32,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["Exeter Adult Education"]},{"city":"Hanover","lat":43.703,"lon":-72.289,"total":280,"k12":0,"univ":280,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Dartmouth College"]},{"city":"Portsmouth","lat":43.072,"lon":-70.762,"total":538,"k12":538,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Portsmouth High School"]}],"2023-24":[{"city":"Durham","lat":43.135,"lon":-70.924,"total":600,"k12":0,"univ":600,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["University of New Hampshire"]},{"city":"Exeter","lat":42.981,"lon":-70.948,"total":32,"k12":0,"univ":0,"altri":32,"teachers":1,"t_k12":0,"t_univ":0,"t_altri":1,"insts":["Exeter Adult Education"]},{"city":"Hanover","lat":43.703,"lon":-72.289,"total":280,"k12":0,"univ":280,"altri":0,"teachers":9,"t_k12":0,"t_univ":9,"t_altri":0,"insts":["Dartmouth College"]},{"city":"Portsmouth","lat":43.072,"lon":-70.762,"total":380,"k12":380,"univ":0,"altri":0,"teachers":2,"t_k12":2,"t_univ":0,"t_altri":0,"insts":["Portsmouth School Department (elementary)"]}]},"VT":{"2020-21":[{"city":"Bennington","lat":42.878,"lon":-73.197,"total":6,"k12":0,"univ":6,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bennington College"]},{"city":"Burlington","lat":44.476,"lon":-73.212,"total":315,"k12":0,"univ":165,"altri":150,"teachers":10,"t_k12":0,"t_univ":4,"t_altri":6,"insts":["University of Vermont","VERMONT ITALIAN CULTURAL ASSOCIATION"]},{"city":"Middlebury","lat":44.015,"lon":-73.167,"total":75,"k12":0,"univ":75,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Middlebury College"]}],"2021-22":[{"city":"Bennington","lat":42.878,"lon":-73.197,"total":7,"k12":0,"univ":7,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bennington College"]},{"city":"Burlington","lat":44.476,"lon":-73.212,"total":300,"k12":0,"univ":149,"altri":151,"teachers":8,"t_k12":0,"t_univ":4,"t_altri":4,"insts":["University of Vermont","Vermont Italian Cultural Association"]},{"city":"Middlebury","lat":44.015,"lon":-73.167,"total":75,"k12":0,"univ":75,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Middlebury College"]}],"2022-23":[{"city":"Bennington","lat":42.878,"lon":-73.197,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Bennington College"]},{"city":"Burlington","lat":44.476,"lon":-73.212,"total":393,"k12":0,"univ":202,"altri":191,"teachers":8,"t_k12":0,"t_univ":4,"t_altri":4,"insts":["University of Vermont","Vermont Italian Cultural Association"]},{"city":"Middlebury","lat":44.015,"lon":-73.167,"total":70,"k12":0,"univ":70,"altri":0,"teachers":16,"t_k12":0,"t_univ":16,"t_altri":0,"insts":["Middlebury College"]}],"2023-24":[{"city":"Bennington","lat":42.878,"lon":-73.197,"total":0,"k12":0,"univ":0,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["Bennington College"]},{"city":"Burlington","lat":44.476,"lon":-73.212,"total":430,"k12":0,"univ":227,"altri":203,"teachers":8,"t_k12":0,"t_univ":4,"t_altri":4,"insts":["University of Vermont","Vermont Italian Cultural Association"]},{"city":"Middlebury","lat":44.015,"lon":-73.167,"total":160,"k12":0,"univ":160,"altri":0,"teachers":5,"t_k12":0,"t_univ":5,"t_altri":0,"insts":["Middlebury College"]}]},"ME":{"2020-21":[{"city":"Brunswick","lat":43.914,"lon":-69.965,"total":86,"k12":0,"univ":86,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Bowdoin College"]},{"city":"Portland","lat":43.661,"lon":-70.255,"total":36,"k12":0,"univ":36,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["University of Southern Main"]},{"city":"Rockland","lat":44.104,"lon":-69.109,"total":64,"k12":0,"univ":0,"altri":64,"teachers":3,"t_k12":0,"t_univ":0,"t_altri":3,"insts":["PENOSCOBOT BAY LANGUAGE SCHOOL"]},{"city":"Waterville","lat":44.553,"lon":-69.631,"total":124,"k12":0,"univ":124,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Colby College"]}],"2021-22":[{"city":"Brunswick","lat":43.914,"lon":-69.965,"total":55,"k12":0,"univ":55,"altri":0,"teachers":4,"t_k12":0,"t_univ":4,"t_altri":0,"insts":["Bowdoin College"]},{"city":"Portland","lat":43.661,"lon":-70.255,"total":36,"k12":0,"univ":36,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["University of Southern Maine"]},{"city":"Rockland","lat":44.104,"lon":-69.109,"total":15,"k12":0,"univ":0,"altri":15,"teachers":2,"t_k12":0,"t_univ":0,"t_altri":2,"insts":["Penobscot Bay Language School"]},{"city":"Waterville","lat":44.553,"lon":-69.631,"total":133,"k12":0,"univ":133,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Colby College"]}],"2022-23":[{"city":"Brunswick","lat":43.914,"lon":-69.965,"total":73,"k12":0,"univ":73,"altri":0,"teachers":3,"t_k12":0,"t_univ":3,"t_altri":0,"insts":["Bowdoin College"]},{"city":"Portland","lat":43.661,"lon":-70.255,"total":15,"k12":0,"univ":15,"altri":0,"teachers":1,"t_k12":0,"t_univ":1,"t_altri":0,"insts":["University of Southern Maine"]},{"city":"Rockland","lat":44.104,"lon":-69.109,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Penobscot Bay Language School"]},{"city":"Waterville","lat":44.553,"lon":-69.631,"total":97,"k12":0,"univ":97,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Colby College"]}],"2023-24":[{"city":"Brunswick","lat":43.914,"lon":-69.965,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Bowdoin College"]},{"city":"Portland","lat":43.661,"lon":-70.255,"total":38,"k12":0,"univ":38,"altri":0,"teachers":10,"t_k12":0,"t_univ":10,"t_altri":0,"insts":["University of Southern Maine"]},{"city":"Rockland","lat":44.104,"lon":-69.109,"total":0,"k12":0,"univ":0,"altri":0,"teachers":0,"t_k12":0,"t_univ":0,"t_altri":0,"insts":["Penobscot Bay Language School"]},{"city":"Waterville","lat":44.553,"lon":-69.631,"total":115,"k12":0,"univ":115,"altri":0,"teachers":2,"t_k12":0,"t_univ":2,"t_altri":0,"insts":["Colby College"]}]}},"stateSectors":{"MA":{"2020-21":{"k12":6471,"univ":2892,"altri":398,"total":9761,"teachers":189,"t_k12":97,"t_univ":77,"t_altri":15},"2021-22":{"k12":6116,"univ":2652,"altri":580,"total":9348,"teachers":194,"t_k12":85,"t_univ":73,"t_altri":36},"2022-23":{"k12":6598,"univ":2623,"altri":544,"total":9765,"teachers":198,"t_k12":88,"t_univ":77,"t_altri":33},"2023-24":{"k12":6114,"univ":2730,"altri":570,"total":9414,"teachers":170,"t_k12":76,"t_univ":70,"t_altri":24}},"RI":{"2020-21":{"k12":2283,"univ":773,"altri":0,"total":3056,"teachers":61,"t_k12":40,"t_univ":21,"t_altri":0},"2021-22":{"k12":2511,"univ":407,"altri":15,"total":2933,"teachers":63,"t_k12":42,"t_univ":20,"t_altri":1},"2022-23":{"k12":2184,"univ":689,"altri":33,"total":2906,"teachers":51,"t_k12":37,"t_univ":13,"t_altri":1},"2023-24":{"k12":3816,"univ":817,"altri":101,"total":4734,"teachers":62,"t_k12":45,"t_univ":15,"t_altri":2}},"NH":{"2020-21":{"k12":25,"univ":450,"altri":15,"total":490,"teachers":14,"t_k12":1,"t_univ":12,"t_altri":1},"2021-22":{"k12":25,"univ":622,"altri":15,"total":662,"teachers":13,"t_k12":1,"t_univ":12,"t_altri":0},"2022-23":{"k12":538,"univ":920,"altri":32,"total":1490,"teachers":12,"t_k12":2,"t_univ":9,"t_altri":1},"2023-24":{"k12":380,"univ":880,"altri":32,"total":1292,"teachers":17,"t_k12":2,"t_univ":14,"t_altri":1}},"VT":{"2020-21":{"k12":0,"univ":246,"altri":150,"total":396,"teachers":16,"t_k12":0,"t_univ":10,"t_altri":6},"2021-22":{"k12":0,"univ":231,"altri":151,"total":382,"teachers":14,"t_k12":0,"t_univ":10,"t_altri":4},"2022-23":{"k12":0,"univ":272,"altri":191,"total":463,"teachers":24,"t_k12":0,"t_univ":20,"t_altri":4},"2023-24":{"k12":0,"univ":387,"altri":203,"total":590,"teachers":14,"t_k12":0,"t_univ":10,"t_altri":4}},"ME":{"2020-21":{"k12":0,"univ":246,"altri":64,"total":310,"teachers":11,"t_k12":0,"t_univ":8,"t_altri":3},"2021-22":{"k12":0,"univ":224,"altri":15,"total":239,"teachers":10,"t_k12":0,"t_univ":8,"t_altri":2},"2022-23":{"k12":0,"univ":185,"altri":0,"total":185,"teachers":6,"t_k12":0,"t_univ":6,"t_altri":0},"2023-24":{"k12":0,"univ":153,"altri":0,"total":153,"teachers":12,"t_k12":0,"t_univ":12,"t_altri":0}}},"neSectors":{"2020-21":{"k12":8779,"univ":4607,"altri":627,"total":14013,"teachers":291,"t_k12":138,"t_univ":128,"t_altri":25},"2021-22":{"k12":8652,"univ":4136,"altri":776,"total":13564,"teachers":294,"t_k12":128,"t_univ":123,"t_altri":43},"2022-23":{"k12":9320,"univ":4689,"altri":800,"total":14809,"teachers":291,"t_k12":127,"t_univ":125,"t_altri":39},"2023-24":{"k12":10310,"univ":4967,"altri":906,"total":16183,"teachers":275,"t_k12":123,"t_univ":121,"t_altri":31}},"per100k":{"MA":{"2020-21":139.5,"2021-22":133.8,"2022-23":139.7,"2023-24":134.5},"RI":{"2020-21":278.7,"2021-22":267.9,"2022-23":265.2,"2023-24":431.3},"NH":{"2020-21":35.4,"2021-22":47.6,"2022-23":106.5,"2023-24":92.2},"VT":{"2020-21":61.4,"2021-22":59.0,"2022-23":71.5,"2023-24":91.1},"ME":{"2020-21":22.6,"2021-22":17.3,"2022-23":13.3,"2023-24":11.0}},"pop":{"MA":{"2020-21":6994832,"2021-22":6987345,"2022-23":6992069,"2023-24":7001399},"RI":{"2020-21":1096494,"2021-22":1094672,"2022-23":1095699,"2023-24":1097665},"NH":{"2020-21":1383260,"2021-22":1392111,"2022-23":1398642,"2023-24":1402054},"VT":{"2020-21":645283,"2021-22":647436,"2022-23":647636,"2023-24":647464},"ME":{"2020-21":1371652,"2021-22":1384062,"2022-23":1392530,"2023-24":1395722}}}
+const SC = {k12:'#3b82f6', univ:'#ef4444', altri:'#f59e0b'};
+const SL = {k12:'K-12', univ:'University', altri:'Other'};
+const AC = '#90caf9';
+const YEARS = D.years, STATES = D.states;
+
+const COUNTY_POP = {"MA|Agawam":{"county":"Hampden","pop":{"2020-21":469203,"2021-22":467000,"2022-23":465000,"2023-24":464000}},"MA|Amherst":{"county":"Hampshire","pop":{"2020-21":160579,"2021-22":159500,"2022-23":158750,"2023-24":158500}},"MA|Arlington":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Billerica":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Boston":{"county":"Suffolk","pop":{"2020-21":799453,"2021-22":792500,"2022-23":793000,"2023-24":796000}},"MA|Boxford":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Bridgewater":{"county":"Plymouth","pop":{"2020-21":531909,"2021-22":534000,"2022-23":536000,"2023-24":537000}},"MA|Brookline":{"county":"Norfolk","pop":{"2020-21":732473,"2021-22":735000,"2022-23":737000,"2023-24":738000}},"MA|Burlington":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Cambridge":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Canton":{"county":"Norfolk","pop":{"2020-21":732473,"2021-22":735000,"2022-23":737000,"2023-24":738000}},"MA|Easton":{"county":"Bristol","pop":{"2020-21":575570,"2021-22":576678,"2022-23":577743,"2023-24":578274}},"MA|Everett":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Fitchburg":{"county":"Worcester","pop":{"2020-21":853312,"2021-22":856500,"2022-23":860000,"2023-24":862000}},"MA|Framingham":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Gloucester":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Haverhill":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Leominster":{"county":"Worcester","pop":{"2020-21":853312,"2021-22":856500,"2022-23":860000,"2023-24":862000}},"MA|Lexington":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Lowell":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Lynnfield":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Malden":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Medford":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Melrose":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Methuen":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Milford":{"county":"Worcester","pop":{"2020-21":853312,"2021-22":856500,"2022-23":860000,"2023-24":862000}},"MA|Newton":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|North Andover":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Northampton":{"county":"Hampshire","pop":{"2020-21":160579,"2021-22":159500,"2022-23":158750,"2023-24":158500}},"MA|Norton":{"county":"Bristol","pop":{"2020-21":575570,"2021-22":576678,"2022-23":577743,"2023-24":578274}},"MA|Pittsfield":{"county":"Berkshire","pop":{"2020-21":150998,"2021-22":149100,"2022-23":148362,"2023-24":148230}},"MA|Quincy":{"county":"Norfolk","pop":{"2020-21":732473,"2021-22":735000,"2022-23":737000,"2023-24":738000}},"MA|Revere":{"county":"Suffolk","pop":{"2020-21":799453,"2021-22":792500,"2022-23":793000,"2023-24":796000}},"MA|Salem":{"county":"Essex","pop":{"2020-21":803420,"2021-22":807000,"2022-23":809000,"2023-24":810000}},"MA|Somerville":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|South Hadley":{"county":"Hampshire","pop":{"2020-21":160579,"2021-22":159500,"2022-23":158750,"2023-24":158500}},"MA|South Kingstown":{"county":"Washington","pop":{"2020-21":133485,"2021-22":133650,"2022-23":134000,"2023-24":134200}},"MA|Springfield":{"county":"Hampden","pop":{"2020-21":469203,"2021-22":467000,"2022-23":465000,"2023-24":464000}},"MA|Stoneham":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Wakefield":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Waltham":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Watertown":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Wellesley":{"county":"Norfolk","pop":{"2020-21":732473,"2021-22":735000,"2022-23":737000,"2023-24":738000}},"MA|West Springfield":{"county":"Hampden","pop":{"2020-21":469203,"2021-22":467000,"2022-23":465000,"2023-24":464000}},"MA|Williamstown":{"county":"Berkshire","pop":{"2020-21":150998,"2021-22":149100,"2022-23":148362,"2023-24":148230}},"MA|Wilmington":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Winchester":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Winthrop":{"county":"Suffolk","pop":{"2020-21":799453,"2021-22":792500,"2022-23":793000,"2023-24":796000}},"MA|Woburn":{"county":"Middlesex","pop":{"2020-21":1633501,"2021-22":1636000,"2022-23":1638500,"2023-24":1640000}},"MA|Worcester":{"county":"Worcester","pop":{"2020-21":853312,"2021-22":856500,"2022-23":860000,"2023-24":862000}},"RI|Coventry":{"county":"Kent","pop":{"2020-21":170181,"2021-22":169900,"2022-23":169700,"2023-24":169600}},"RI|Cranston":{"county":"Providence","pop":{"2020-21":659835,"2021-22":658000,"2022-23":657000,"2023-24":657000}},"RI|Johnston":{"county":"Providence","pop":{"2020-21":659835,"2021-22":658000,"2022-23":657000,"2023-24":657000}},"RI|Narragansett":{"county":"Washington","pop":{"2020-21":133485,"2021-22":133650,"2022-23":134000,"2023-24":134200}},"RI|Newport":{"county":"Newport","pop":{"2020-21":82141,"2021-22":82300,"2022-23":82550,"2023-24":82700}},"RI|North Providence":{"county":"Providence","pop":{"2020-21":659835,"2021-22":658000,"2022-23":657000,"2023-24":657000}},"RI|Providence":{"county":"Providence","pop":{"2020-21":659835,"2021-22":658000,"2022-23":657000,"2023-24":657000}},"RI|Richmond":{"county":"Washington","pop":{"2020-21":133485,"2021-22":133650,"2022-23":134000,"2023-24":134200}},"RI|Riverside":{"county":"Providence","pop":{"2020-21":659835,"2021-22":658000,"2022-23":657000,"2023-24":657000}},"RI|Smithfield":{"county":"Providence","pop":{"2020-21":659835,"2021-22":658000,"2022-23":657000,"2023-24":657000}},"RI|South Kingstown":{"county":"Washington","pop":{"2020-21":133485,"2021-22":133650,"2022-23":134000,"2023-24":134200}},"RI|Warwick":{"county":"Kent","pop":{"2020-21":170181,"2021-22":169900,"2022-23":169700,"2023-24":169600}},"RI|West Warwick":{"county":"Kent","pop":{"2020-21":170181,"2021-22":169900,"2022-23":169700,"2023-24":169600}},"RI|Westerly":{"county":"Washington","pop":{"2020-21":133485,"2021-22":133650,"2022-23":134000,"2023-24":134200}},"NH|Durham":{"county":"Strafford","pop":{"2020-21":131465,"2021-22":132600,"2022-23":133800,"2023-24":134400}},"NH|Exeter":{"county":"Rockingham","pop":{"2020-21":315588,"2021-22":318250,"2022-23":320750,"2023-24":322000}},"NH|Hanover":{"county":"Grafton","pop":{"2020-21":89905,"2021-22":90100,"2022-23":90300,"2023-24":90400}},"NH|Portsmouth":{"county":"Rockingham","pop":{"2020-21":315588,"2021-22":318250,"2022-23":320750,"2023-24":322000}},"VT|Bennington":{"county":"Bennington","pop":{"2020-21":35185,"2021-22":35050,"2022-23":34950,"2023-24":34900}},"VT|Burlington":{"county":"Chittenden","pop":{"2020-21":168561,"2021-22":169000,"2022-23":169350,"2023-24":169500}},"VT|Middlebury":{"county":"Addison","pop":{"2020-21":36888,"2021-22":37100,"2022-23":37300,"2023-24":37400}},"ME|Brunswick":{"county":"Cumberland","pop":{"2020-21":307496,"2021-22":310500,"2022-23":313500,"2023-24":315000}},"ME|Portland":{"county":"Cumberland","pop":{"2020-21":307496,"2021-22":310500,"2022-23":313500,"2023-24":315000}},"ME|Rockland":{"county":"Knox","pop":{"2020-21":40803,"2021-22":41200,"2022-23":41600,"2023-24":41800}},"ME|Waterville":{"county":"Kennebec","pop":{"2020-21":122651,"2021-22":123500,"2022-23":124400,"2023-24":124800}}};
+
+function cityCountyPop(st, city, yr) {
+  const key = st + '|' + city;
+  return COUNTY_POP[key]?.pop?.[yr] || D.pop[st][yr]; // fallback to state pop
+}
+function cityCountyName(st, city) {
+  const key = st + '|' + city;
+  return COUNTY_POP[key]?.county || null;
+}
+
+const NE_FIPS = {ME:'23',NH:'33',VT:'50',MA:'25',RI:'44'};
+const FIPS_ST = Object.fromEntries(Object.entries(NE_FIPS).map(([s,f])=>[f,s]));
+
+let ovYear='2023-24', ovMetric='raw', sideM='raw';
+let stYear={MA:'2023-24',RI:'2023-24',NH:'2023-24',VT:'2023-24',ME:'2023-24'};
+let stMetric={MA:'raw',RI:'raw',NH:'raw',VT:'raw',ME:'raw'};
+let usGeo=null, countyGeo={};
+
+// ── TOOLTIP ───────────────────────────────────────────────────────────────
+const tip=document.getElementById('tip');
+const showTip=e=>{tip.style.display='block';moveTip(e);};
+const hideTip=()=>{tip.style.display='none';};
+function moveTip(e){
+  tip.style.left=Math.min(e.clientX+14,window.innerWidth-255)+'px';
+  tip.style.top=Math.min(e.clientY-16,window.innerHeight-tip.offsetHeight-10)+'px';
+}
+document.addEventListener('mousemove',e=>{if(tip.style.display==='block')moveTip(e);});
+
+// ── DONUT helper (NE overview state bubbles only) ─────────────────────────
+function donutSVG(cx,cy,R,ri,secs){
+  const total=secs.reduce((a,s)=>a+s.v,0); if(!total) return '';
+  let a=-Math.PI/2, out='';
+  secs.forEach(s=>{
+    if(s.v<=0) return;
+    const da=(s.v/total)*2*Math.PI, ea=a+da, lg=da>Math.PI?1:0;
+    const x1=cx+R*Math.cos(a),y1=cy+R*Math.sin(a);
+    const x2=cx+R*Math.cos(ea),y2=cy+R*Math.sin(ea);
+    const x3=cx+ri*Math.cos(ea),y3=cy+ri*Math.sin(ea);
+    const x4=cx+ri*Math.cos(a),y4=cy+ri*Math.sin(a);
+    out+=`<path d="M${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${lg},1 ${x2.toFixed(2)},${y2.toFixed(2)} L${x3.toFixed(2)},${y3.toFixed(2)} A${ri},${ri} 0 ${lg},0 ${x4.toFixed(2)},${y4.toFixed(2)} Z" fill="${s.c}" fill-opacity="0.82" stroke="rgba(13,17,23,.4)" stroke-width="0.6"/>`;
+    a=ea;
+  });
+  return out;
+}
+
+// ── STACKED BAR CHART helper ──────────────────────────────────────────────
+function stackedBarsSVG(key, activeYr, W=268, H=80, mode='students'){
+  // key = 'NE' or a state code
+  const P=10;
+  const getS = y => key==='NE' ? D.neSectors[y] : D.stateSectors[key][y];
+  const getVal = (s,k) => mode==='teachers' ? (s['t_'+k]||0) : s[k];
+  const getTotal = s => mode==='teachers' ? (s.teachers||0) : s.total;
+  // Use GLOBAL max across all years so bars are proportional
+  const maxT = Math.max(...YEARS.map(y => getTotal(getS(y))), 1);
+  const bW = (W-2*P)/YEARS.length - 5;
+  const px = i => P + i*(W-2*P)/(YEARS.length-1);
+  let bars='';
+  YEARS.forEach((y,i)=>{
+    const s=getS(y), tot=getTotal(s), bH=H-P-10, cur=y===activeYr;
+    // height proportional to global max
+    const totalH = (tot/maxT)*bH;
+    let cumH=0;
+    ['altri','univ','k12'].forEach(k=>{
+      const kv=getVal(s,k); if(kv<=0) return;
+      const h=(kv/tot)*totalH;
+      bars+=`<rect x="${(px(i)-bW/2).toFixed(1)}" y="${(H-10-cumH-h).toFixed(1)}" width="${bW.toFixed(1)}" height="${h.toFixed(1)}" fill="${SC[k]}" fill-opacity="${cur?.9:.45}" rx="1"/>`;
+      cumH+=h;
+    });
+    bars+=`<text x="${px(i).toFixed(1)}" y="${H}" text-anchor="middle" font-size="7.5" fill="${cur?'rgba(255,255,255,.65)':'var(--muted)'}" font-family="Barlow">${y.slice(2,4)}–${y.slice(5)}</text>`;
+    if(cur) bars+=`<text x="${px(i).toFixed(1)}" y="${(H-10-cumH-4).toFixed(1)}" text-anchor="middle" font-size="7.5" fill="rgba(255,255,255,.45)" font-family="Barlow">${tot.toLocaleString()}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px;display:block">${bars}</svg>`;
+}
+
+// ── GEO LOAD ─────────────────────────────────────────────────────────────
+async function loadGeo(){
+  try{
+    const [r1,r2]=await Promise.all([
+      fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json'),
+      fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/counties-10m.json')
+    ]);
+    const [t1,t2]=await Promise.all([r1.json(),r2.json()]);
+    usGeo=topojson.feature(t1,t1.objects.states);
+    const allC=topojson.feature(t2,t2.objects.counties);
+    STATES.forEach(st=>{
+      const fp=NE_FIPS[st];
+      countyGeo[st]={type:'FeatureCollection',features:allC.features.filter(f=>String(f.id).startsWith(fp))};
+    });
+    return true;
+  }catch(e){console.error('Geo load failed',e);return false;}
+}
+
+// ── NE OVERVIEW MAP ───────────────────────────────────────────────────────
+function renderNEMap(){
+  const svg=document.getElementById('ne-map'); if(!svg||!usGeo) return;
+  const W=580,H=440;
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const neF=usGeo.features.filter(f=>Object.values(NE_FIPS).includes(String(f.id).padStart(2,'0')));
+  const proj=d3.geoMercator().fitSize([W-40,H-40],{type:'FeatureCollection',features:neF});
+  proj.translate([proj.translate()[0]+20,proj.translate()[1]+20]);
+  const gp=d3.geoPath().projection(proj);
+  let h='';
+
+  // State fills — no color, uniform
+  neF.forEach(f=>{
+    const st=FIPS_ST[String(f.id).padStart(2,'0')]; if(!st) return;
+    h+=`<path class="state-fill" id="nsp-${st}" d="${gp(f)}"
+      onmouseenter="document.getElementById('nsp-${st}').classList.add('hov')"
+      onmouseleave="document.getElementById('nsp-${st}').classList.remove('hov')"
+      onclick="switchTab(${STATES.indexOf(st)+1})"/>`;
+  });
+
+  // One bubble per state — donut ring (sector breakdown)
+  // Metric-aware bubble value
+  const getBubV=st=>{
+    const sec=D.stateSectors[st][ovYear];
+    if(ovMetric==='per100k') return D.per100k[st][ovYear]||0;
+    if(ovMetric==='teachers') return sec.teachers||0;
+    return sec.total||0;
+  };
+  const fmtBubV=v=>ovMetric==='per100k'?v.toFixed(1):Math.round(v).toLocaleString();
+
+  const stateData=STATES.map(st=>{
+    const sec=D.stateSectors[st][ovYear];
+    const raw=sec.total, p100=D.per100k[st][ovYear];
+    const bubV=getBubV(st);
+    const feat=neF.find(f=>FIPS_ST[String(f.id).padStart(2,'0')]===st);
+    const [cx,cy]=gp.centroid(feat)||[0,0];
+    return {st,raw,p100,sec,cx,cy,bubV};
+  }).filter(d=>!isNaN(d.cx)&&d.cx!==0);
+
+  const maxV=Math.max(...stateData.map(d=>d.bubV),1);
+
+  stateData.forEach(d=>{
+    const R=Math.max(20,Math.sqrt(d.bubV/maxV)*68);
+    const {cx,cy,st,sec,raw,bubV}=d;
+    const Rf=R.toFixed(1);
+
+    // Outer pulse ring
+    h+=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(R*1.35).toFixed(1)}" fill="none" stroke="rgba(34,197,94,.35)" stroke-width="1.4" pointer-events="none">
+      <animate attributeName="r" values="${(R*1.35).toFixed(1)};${(R*1.75).toFixed(1)};${(R*1.35).toFixed(1)}" dur="3.2s" repeatCount="indefinite"/>
+      <animate attributeName="stroke-opacity" values=".35;.05;.35" dur="3.2s" repeatCount="indefinite"/>
+    </circle>`;
+    // Mid ring
+    h+=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(R*1.15).toFixed(1)}" fill="rgba(34,197,94,.08)" stroke="rgba(34,197,94,.22)" stroke-width="0.9" pointer-events="none">
+      <animate attributeName="r" values="${(R*1.15).toFixed(1)};${(R*1.48).toFixed(1)};${(R*1.15).toFixed(1)}" dur="3.2s" begin="0.45s" repeatCount="indefinite"/>
+      <animate attributeName="fill-opacity" values=".05;.01;.05" dur="3.2s" begin="0.45s" repeatCount="indefinite"/>
+    </circle>`;
+    // Core transparent bubble
+    h+=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${Rf}" fill="rgba(34,197,94,.18)" stroke="rgba(34,197,94,.82)" stroke-width="1.3" style="cursor:pointer"
+      onmouseenter="onNeBub(event,'${st}')" onmouseleave="hideTip()" onclick="switchTab(${STATES.indexOf(st)+1})"/>`;
+
+    // State label inside
+    h+=`<text x="${cx.toFixed(1)}" y="${(cy+4).toFixed(1)}" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="12" font-weight="700" fill="rgba(255,255,255,.85)" pointer-events="none">${st}</text>`;
+    // Value below bubble — reflects active metric
+    h+=`<text x="${cx.toFixed(1)}" y="${(cy+R+14).toFixed(1)}" text-anchor="middle" font-family="Barlow,sans-serif" font-size="9.5" fill="rgba(255,255,255,.4)" pointer-events="none">${fmtBubV(bubV)}</text>`;
+  });
+
+  svg.innerHTML=h;
+}
+
+function onNeBub(e,st){
+  const sec=D.stateSectors[st][ovYear], p=D.per100k[st][ovYear];
+  tip.innerHTML=`
+    <div class="tt-title" style="color:${AC}">${D.stateNames[st]}</div>
+    <div class="tt-row"><span class="tt-lbl">Total students</span><span class="tt-val">${sec.total.toLocaleString()}</span></div>
+    <div class="tt-row"><span class="tt-lbl">Italian teachers</span><span class="tt-val">${(sec.teachers||0).toLocaleString()}</span></div>
+    <div class="tt-row"><span class="tt-lbl">Per 100k pop.</span><span class="tt-val">${p.toFixed(1)}</span></div>
+    <div class="tt-div"></div>
+    ${['k12','univ','altri'].map(k=>`<div class="tt-row"><span class="tt-lbl"><span class="tt-dot" style="background:${SC[k]}"></span>${SL[k]}</span><span class="tt-val" style="color:${SC[k]}">${sec[k].toLocaleString()}</span></div>`).join('')}
+    <div style="font-size:10px;color:var(--muted);margin-top:8px">Click to open state detail →</div>`;
+  showTip(e);
+}
+
+// ── NE SIDEBAR ────────────────────────────────────────────────────────────
+function renderNESidebar(){
+  const sb=document.getElementById('ne-sidebar'); if(!sb) return;
+  const yr=ovYear, m=sideM;
+  const sec=D.neSectors[yr], sec0=D.neSectors[YEARS[0]];
+  function neP100k(y){
+    const t=STATES.reduce((a,st)=>a+(D.stateSectors[st][y]?.total||0),0);
+    const p=STATES.reduce((a,st)=>a+(D.pop[st][y]||0),0);
+    return +(t/p*100000).toFixed(1);
+  }
+  const curV=m==='per100k'?neP100k(yr):m==='teachers'?(sec.teachers||0):sec.total;
+  const curV0=m==='per100k'?neP100k(YEARS[0]):m==='teachers'?(sec0.teachers||0):sec0.total;
+  const delta=curV-curV0;
+  const fmt=v=>m==='per100k'?v.toFixed(1):v.toLocaleString();
+  const maxSt = m==='per100k'
+    ? Math.max(...STATES.map(st=>D.per100k[st][yr]||0),1)
+    : m==='teachers'
+    ? Math.max(...STATES.map(st=>D.stateSectors[st][yr]?.teachers||0),1)
+    : Math.max(...STATES.map(st=>D.stateSectors[st][yr]?.total||0),1);
+
+  sb.innerHTML=`
+    <div class="panel-hdr"><span class="panel-title">New England · ${yr}</span></div>
+    <div class="panel-body">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:11px">
+        <div class="btn-grp" id="ne-sm">
+          <button class="cbtn${m==='raw'?' active':''}" onclick="setSideM('raw')">Total</button>
+          <button class="cbtn${m==='per100k'?' active':''}" onclick="setSideM('per100k')">Per 100k</button>
+          <button class="cbtn${m==='teachers'?' active':''}" onclick="setSideM('teachers')">Teachers</button>
+        </div>
+        <span class="info-icon" onclick="showInfo('raw',this)" title="What is this?">i</span>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box" style="grid-column:span 2">
+          <div class="stat-lbl">${m==='per100k'?'Students / 100k pop.':m==='teachers'?'Italian teachers':'Total students'} · ${yr}</div>
+          <div class="stat-num" style="color:${AC};font-size:26px">${fmt(curV)}</div>
+          <div class="stat-delta" style="color:${delta>=0?'#68d391':'#fc8181'}">${delta>=0?'▲':'▼'} ${fmt(Math.abs(delta))} vs ${YEARS[0]}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:13px">
+        <div class="stat-lbl" style="margin-bottom:5px">Sector breakdown · all years</div>
+        ${stackedBarsSVG('NE',yr,268,80,m)}
+        <div style="display:flex;gap:10px;margin-top:5px">
+          ${['k12','univ','altri'].map(k=>`<div class="leg" style="font-size:10px"><div class="leg-dot" style="background:${SC[k]}"></div>${SL[k]}</div>`).join('')}
+        </div>
+      </div>
+      <div class="stat-lbl" style="margin-bottom:7px">By state · ${yr}</div>
+      ${STATES.map(st=>{
+        const s=D.stateSectors[st][yr], tot=s.total;
+        const dispV = m==='per100k' ? D.per100k[st][yr] : m==='teachers' ? (s.teachers||0) : tot;
+        const dispStr = m==='per100k' ? dispV.toFixed(1) : dispV.toLocaleString();
+        const barW=(dispV/maxSt*100).toFixed(1);
+        return `<div class="srow" style="cursor:pointer" onclick="switchTab(${STATES.indexOf(st)+1})">
+          <div class="srow-top">
+            <span class="srow-name" style="color:${AC}">${st} <span style="font-weight:400;font-size:10px;color:var(--muted)">${D.stateNames[st]}</span></span>
+            <span class="srow-val">${dispStr}</span>
+          </div>
+          <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="display:flex;height:100%;width:${barW}%">
+              <div style="width:${tot?(s.k12/tot*100).toFixed(1):0}%;background:${SC.k12}"></div>
+              <div style="width:${tot?(s.univ/tot*100).toFixed(1):0}%;background:${SC.univ}"></div>
+              <div style="width:${tot?(s.altri/tot*100).toFixed(1):0}%;background:${SC.altri}"></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function setOvYear(y){ovYear=y;document.querySelectorAll('#ov-yr .cbtn').forEach((b,i)=>b.classList.toggle('active',YEARS[i]===y));renderNEMap();renderNESidebar();}
+function setOvMetric(m){ovMetric=m;sideM=m;const idx=['raw','per100k','teachers'].indexOf(m);document.querySelectorAll('#ov-m .cbtn').forEach((b,i)=>b.classList.toggle('active',i===idx));renderNEMap();renderNESidebar();}
+function setSideM(m){sideM=m;ovMetric=m;renderNEMap();renderNESidebar();}
+
+// ── STATE MAP — pulsating transparent bubbles ─────────────────────────────
+function renderStateMap(st){
+  const con=document.getElementById(`st-map-${st}`); if(!con||!countyGeo[st]) return;
+  const yr=stYear[st], m=stMetric[st];
+  const cities=D.cityData[st][yr]||[];
+  const fips=NE_FIPS[st];
+  const stFeat=usGeo?.features.find(f=>String(f.id).padStart(2,'0')===fips); if(!stFeat) return;
+
+  const W=520, H=st==='ME'?420:st==='NH'?380:st==='VT'?340:st==='RI'?300:290;
+  const MAX_R={MA:20,RI:24,NH:30,VT:34,ME:38}[st]||26;
+  const ZOOMABLE=['MA','RI','NH'].includes(st);
+
+  const proj=d3.geoMercator().fitSize([W-40,H-30],countyGeo[st]);
+  proj.translate([proj.translate()[0]+20,proj.translate()[1]+15]);
+  const gp=d3.geoPath().projection(proj);
+
+  // Pre-compute projected positions only — metric values computed fresh in drawBubbles
+  const statePop=D.pop[st][yr];
+  const cityPoints=cities.map(c=>{
+    if(!c.lat||!c.lon) return null;
+    const [x,y]=proj([c.lon,c.lat]);
+    return isNaN(x)?null:{...c,ox:x,oy:y};
+  }).filter(Boolean);
+
+  con.innerHTML='';
+  const svg=d3.select(con).append('svg')
+    .attr('viewBox',`0 0 ${W} ${H}`)
+    .style('width','100%').style('height','auto').style('display','block')
+    .style('cursor', ZOOMABLE?'grab':'default');
+
+  // Clip
+  svg.append('defs').append('clipPath').attr('id',`clip-${st}`)
+    .append('rect').attr('width',W).attr('height',H);
+
+  // LAYER 1: map geography — this gets zoomed/panned
+  const mapG=svg.append('g').attr('clip-path',`url(#clip-${st})`).attr('id',`mapg-${st}`);
+
+  mapG.append('path').datum(stFeat)
+    .attr('d',gp)
+    .attr('fill','rgba(144,202,249,.06)')
+    .attr('stroke','rgba(144,202,249,.45)')
+    .attr('stroke-width',1.2);
+
+  mapG.selectAll('.county-fill').data(countyGeo[st].features).enter()
+    .append('path').attr('class','county-fill').attr('d',gp);
+
+  // LAYER 2: bubbles — fixed size, repositioned but not rescaled on zoom
+  const bubG=svg.append('g').attr('clip-path',`url(#clip-${st})`).attr('id',`bubg-${st}`);
+
+  function drawBubbles(transform){
+    bubG.selectAll('*').remove();
+    // Recompute metric values fresh on every draw (metric may have changed)
+    const curM=stMetric[st];
+    const getV=c=>curM==='teachers'?c.teachers
+      :(curM==='per100k'?(c.total>0?c.total/cityCountyPop(st,c.city,yr)*100000:0)
+      :c.total);
+    const maxV=Math.max(...cityPoints.map(getV),1);
+    // Sort largest first so smaller bubbles render on top
+    const drawOrder=[...cityPoints].sort((a,b)=>getV(b)-getV(a));
+    drawOrder.forEach(c=>{
+      const v=getV(c);
+      // Transform original coords using current zoom transform
+      const tx=transform.applyX(c.ox), ty=transform.applyY(c.oy);
+
+      if(v>0){
+        const R=Math.max(5,Math.sqrt(v/maxV)*MAX_R);
+        const PF={MA:1.22,RI:1.28,NH:1.38,VT:1.45,ME:1.5}[st]||1.35;
+        const vStr=curM==='teachers'?c.teachers.toLocaleString():(curM==='per100k'?v.toFixed(2):c.total.toLocaleString());
+        const insStr=c.insts.slice(0,7).map(s=>s.replace(/'/g,'`')).join('|');
+
+        const bg=bubG.append('g').attr('class','bubble-group');
+
+        // Pulse rings — createElementNS ensures correct SVG namespace for <animate>
+        const outerR=(R*PF).toFixed(1);
+        const outerC = bg.append('circle')
+          .attr('cx',tx).attr('cy',ty).attr('r',outerR)
+          .attr('fill','none').attr('stroke','rgba(34,197,94,.38)').attr('stroke-width',1.2)
+          .attr('pointer-events','none');
+        const svgNS='http://www.w3.org/2000/svg';
+        const mkA=(node,attr,vals,dur,begin)=>{
+          const a=document.createElementNS(svgNS,'animate');
+          a.setAttribute('attributeName',attr);
+          a.setAttribute('values',vals);
+          a.setAttribute('dur',dur);
+          if(begin) a.setAttribute('begin',begin);
+          a.setAttribute('repeatCount','indefinite');
+          node.appendChild(a);
+        };
+        mkA(outerC.node(),'r',`${outerR};${(R*(PF+0.3)).toFixed(1)};${outerR}`,'2.6s');
+        mkA(outerC.node(),'stroke-opacity','.38;.06;.38','2.6s');
+
+        // Mid ring
+        const midR=(R*1.1).toFixed(1);
+        const midC = bg.append('circle')
+          .attr('cx',tx).attr('cy',ty).attr('r',midR)
+          .attr('fill','rgba(34,197,94,.08)').attr('stroke','rgba(34,197,94,.22)').attr('stroke-width',0.8)
+          .attr('pointer-events','none');
+        mkA(midC.node(),'r',`${midR};${(R*(PF-0.05)).toFixed(1)};${midR}`,'2.6s','0.3s');
+        mkA(midC.node(),'fill-opacity','.08;.02;.08','2.6s','0.3s');
+
+        // Core bubble
+        bg.append('circle')
+          .attr('cx',tx).attr('cy',ty).attr('r',R)
+          .attr('fill','rgba(34,197,94,.2)').attr('stroke','rgba(34,197,94,.78)').attr('stroke-width',1.2)
+          .style('cursor','pointer')
+          .on('mouseenter',(evt)=>onCityHov(evt,c.city,st,c.total,c.k12,c.univ,c.altri,insStr,v,curM,c.t_k12||0,c.t_univ||0,c.t_altri||0))
+          .on('mouseleave',hideTip);
+
+        // City label
+        bg.append('text')
+          .attr('x',tx).attr('y',ty-R-5)
+          .attr('text-anchor','middle')
+          .attr('font-family','Barlow,sans-serif')
+          .attr('font-size',R>18?9.5:8.5)
+          .attr('fill',`rgba(255,255,255,${R>14?.65:.4})`)
+          .attr('pointer-events','none')
+          .text(c.city);
+
+        // Value inside if large enough
+        if(R>15){
+          bg.append('text')
+            .attr('x',tx).attr('y',ty+4)
+            .attr('text-anchor','middle')
+            .attr('font-family','Barlow Condensed,sans-serif')
+            .attr('font-size',R>24?10.5:9).attr('font-weight',600)
+            .attr('fill','rgba(255,255,255,.78)')
+            .attr('pointer-events','none')
+            .text(vStr);
+        }
+      } else {
+        bubG.append('circle')
+          .attr('cx',tx).attr('cy',ty).attr('r',3.5)
+          .attr('fill','none').attr('stroke','rgba(34,197,94,.22)')
+          .attr('stroke-width',0.8).attr('stroke-dasharray','2,2');
+        bubG.append('text')
+          .attr('x',tx).attr('y',ty-7)
+          .attr('text-anchor','middle').attr('font-size',8)
+          .attr('fill','rgba(255,255,255,.2)').attr('font-family','Barlow')
+          .attr('pointer-events','none').text(c.city);
+      }
+    });
+  }
+
+  // Initial draw at identity transform
+  drawBubbles(d3.zoomIdentity);
+
+  // ── ZOOM ────────────────────────────────────────────────────────────────
+  if(ZOOMABLE){
+    // Hint
+    const hintG=svg.append('g').attr('id',`hint-${st}`);
+    hintG.append('rect').attr('x',W-138).attr('y',H-22).attr('width',132).attr('height',16)
+      .attr('rx',4).attr('fill','rgba(13,17,23,.72)');
+    hintG.append('text').attr('x',W-72).attr('y',H-11).attr('text-anchor','middle')
+      .attr('font-size',9).attr('font-family','Barlow').attr('fill','rgba(144,202,249,.6)')
+      .text('scroll to zoom · drag to pan');
+
+    // Reset button (hidden until zoomed)
+    const resetG=svg.append('g').attr('id',`reset-${st}`)
+      .style('cursor','pointer').style('display','none');
+    resetG.append('rect').attr('x',8).attr('y',8).attr('width',54).attr('height',17)
+      .attr('rx',4).attr('fill','rgba(144,202,249,.12)')
+      .attr('stroke','rgba(144,202,249,.4)').attr('stroke-width',0.8);
+    resetG.append('text').attr('x',35).attr('y',20.5).attr('text-anchor','middle')
+      .attr('font-size',9).attr('font-family','Barlow')
+      .attr('fill','rgba(144,202,249,.85)').text('↺ reset view');
+
+    const zoom=d3.zoom()
+      .scaleExtent([1,12])
+      .translateExtent([[0,0],[W,H]])
+      .on('zoom',(event)=>{
+        const t=event.transform;
+        // Zoom only the map layer
+        mapG.attr('transform',t);
+        // Redraw bubbles at transformed positions but same size
+        drawBubbles(t);
+        // UI chrome
+        const zoomed=t.k>1.05;
+        d3.select(`#reset-${st}`).style('display',zoomed?'block':'none');
+        d3.select(`#hint-${st}`).style('display',zoomed?'none':'block');
+        svg.style('cursor',zoomed?'grab':'grab');
+      });
+
+    resetG.on('click',()=>{
+      svg.transition().duration(500).call(zoom.transform,d3.zoomIdentity);
+    });
+
+    svg.call(zoom)
+      .on('dblclick.zoom',()=>svg.transition().duration(400).call(zoom.transform,d3.zoomIdentity));
+  }
+}
+
+function onCityHov(e,city,st,total,k12,univ,altri,insStr,metricV,metricMode,tk12,tuniv,taltri){
+  const insts=insStr.split('|').filter(Boolean);
+  const isPer100k = metricMode==='per100k';
+  const isTeachers = metricMode==='teachers';
+  const countyName = cityCountyName(st, city);
+  const denomLabel = countyName ? countyName + ' Co.' : st + ' state';
+  tip.innerHTML=`
+    <div class="tt-title" style="color:${AC}">${city}, ${st}</div>
+    ${isTeachers
+      ? `<div class="tt-row"><span class="tt-lbl">Italian teachers</span><span class="tt-val" style="color:${AC}">${parseFloat(metricV).toFixed(0)}</span></div>
+         <div class="tt-row"><span class="tt-lbl">Total students</span><span class="tt-val">${total.toLocaleString()}</span></div>`
+      : isPer100k
+      ? `<div class="tt-row"><span class="tt-lbl">Per 100k (${denomLabel})</span><span class="tt-val" style="color:${AC}">${parseFloat(metricV).toFixed(1)}</span></div>
+         <div class="tt-row"><span class="tt-lbl">Total students</span><span class="tt-val">${total.toLocaleString()}</span></div>`
+      : `<div class="tt-row"><span class="tt-lbl">Total students</span><span class="tt-val">${total.toLocaleString()}</span></div>`
+    }
+    <div class="tt-div"></div>
+    ${isTeachers
+      ? [['k12',tk12],['univ',tuniv],['altri',taltri]].map(([k,v])=>`
+          <div class="tt-row"><span class="tt-lbl"><span class="tt-dot" style="background:${SC[k]}"></span>${SL[k]}</span><span class="tt-val" style="color:${SC[k]}">${v.toLocaleString()}</span></div>`).join('')
+      : [['k12',k12],['univ',univ],['altri',altri]].map(([k,v])=>`
+          <div class="tt-row"><span class="tt-lbl"><span class="tt-dot" style="background:${SC[k]}"></span>${SL[k]}</span><span class="tt-val" style="color:${SC[k]}">${v.toLocaleString()}</span></div>`).join('')
+    }
+    <div class="tt-div"></div>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:3px">Institutions (${insts.length}):</div>
+    ${insts.map(s=>`<div class="tt-inst">${s}</div>`).join('')}`;
+  showTip(e);
+}
+
+// ── STATE SIDEBAR ─────────────────────────────────────────────────────────
+function renderStateSidebar(st){
+  const sb=document.getElementById(`st-sb-${st}`); if(!sb) return;
+  const yr=stYear[st], m=stMetric[st];
+  const sec=D.stateSectors[st][yr], sec0=D.stateSectors[st][YEARS[0]];
+  const p=D.per100k[st][yr], p0=D.per100k[st][YEARS[0]];
+  const dR=sec.total-sec0.total, dP=+(p-p0).toFixed(1), dT=(sec.teachers||0)-(sec0.teachers||0);
+  const topCities=[...(D.cityData[st][yr]||[])].filter(c=>c.total>0).sort((a,b)=>b.total-a.total).slice(0,6);
+
+  sb.innerHTML=`
+    <div class="panel-hdr"><span class="panel-title" style="color:${AC}">${D.stateNames[st]} · ${yr}</span></div>
+    <div class="panel-body">
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Students</div>
+          <div class="stat-num" style="color:${AC}">${sec.total.toLocaleString()}</div>
+          <div class="stat-delta" style="color:${dR>=0?'#68d391':'#fc8181'}">${dR>=0?'▲':'▼'} ${Math.abs(dR).toLocaleString()}</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">${m==='teachers'?'Teachers':'Per 100k'}</div>
+          <div class="stat-num" style="color:${AC}">${m==='teachers'?sec.teachers.toLocaleString():p.toFixed(1)}</div>
+          <div class="stat-delta" style="color:${m==='teachers'?(dT>=0?'#68d391':'#fc8181'):(dP>=0?'#68d391':'#fc8181')}">${m==='teachers'?(dT>=0?'▲':'▼'):(dP>=0?'▲':'▼')} ${m==='teachers'?Math.abs(dT).toLocaleString():Math.abs(dP).toFixed(1)}</div>
+        </div>
+      </div>
+      <div class="sector-row">
+        ${m==='teachers'
+          ? ['k12','univ','altri'].map(k=>`<div class="sector-chip"><div class="sv" style="color:${SC[k]}">${(sec['t_'+k]||0).toLocaleString()}</div><div class="sl">${SL[k]}</div></div>`).join('')
+          : ['k12','univ','altri'].map(k=>`<div class="sector-chip"><div class="sv" style="color:${SC[k]}">${sec[k].toLocaleString()}</div><div class="sl">${SL[k]}</div></div>`).join('')
+        }
+      </div>
+      <div style="margin-bottom:13px">
+        <div class="stat-lbl" style="margin-bottom:5px">Sector breakdown · all years</div>
+        ${stackedBarsSVG(st,yr,268,80,m)}
+        <div style="display:flex;gap:10px;margin-top:4px">
+          ${['k12','univ','altri'].map(k=>`<div class="leg" style="font-size:10px"><div class="leg-dot" style="background:${SC[k]}"></div>${SL[k]}</div>`).join('')}
+        </div>
+      </div>
+      <div class="stat-lbl" style="margin-bottom:7px">Top cities · ${yr}</div>
+      ${topCities.map(c=>`
+        <div class="srow">
+          <div class="srow-top"><span class="srow-name">${c.city}</span><span class="srow-val">${c.total.toLocaleString()}</span></div>
+          <div style="height:5px;background:var(--bg3);border-radius:3px;overflow:hidden">
+            <div style="display:flex;height:100%;width:${topCities[0].total?(c.total/topCities[0].total*100).toFixed(1):0}%">
+              <div style="width:${c.total?(c.k12/c.total*100).toFixed(1):0}%;background:${SC.k12}"></div>
+              <div style="width:${c.total?(c.univ/c.total*100).toFixed(1):0}%;background:${SC.univ}"></div>
+              <div style="width:${c.total?(c.altri/c.total*100).toFixed(1):0}%;background:${SC.altri}"></div>
+            </div>
+          </div>
+        </div>`).join('')}
+      <div style="margin-top:11px;padding-top:11px;border-top:1px solid var(--border)">
+        <div class="stat-lbl" style="margin-bottom:5px">4-year trajectory</div>
+        ${YEARS.map(y=>{
+          const s=D.stateSectors[st][y];
+          return `<div style="font-size:10.5px;color:${y===yr?'var(--text)':'var(--muted)'};margin-bottom:2px">${y}: <b style="color:${y===yr?AC:'inherit'}">${s.total.toLocaleString()}</b> <span style="color:var(--muted)">(${D.per100k[st][y].toFixed(1)}/100k)</span></div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
+function setStYear(st,y){stYear[st]=y;document.querySelectorAll(`#st-yr-${st} .cbtn`).forEach((b,i)=>b.classList.toggle('active',YEARS[i]===y));renderStateMap(st);renderStateSidebar(st);}
+function setStM(st,m){stMetric[st]=m;const idx=['raw','per100k','teachers'].indexOf(m);document.querySelectorAll(`#st-m-${st} .cbtn`).forEach((b,i)=>b.classList.toggle('active',i===idx));renderStateMap(st);renderStateSidebar(st);}
+
+// ── TABS & PAGES ──────────────────────────────────────────────────────────
+function buildTabs(){
+  const tBar=document.getElementById('tabBar'), pgs=document.getElementById('pages');
+
+  // Overview tab
+  const t0=document.createElement('div'); t0.className='tab active';
+  t0.innerHTML='<span class="tab-dot"></span>New England';
+  t0.onclick=()=>switchTab(0); tBar.appendChild(t0);
+  const p0=document.createElement('div'); p0.className='page active'; p0.id='pg-0';
+  p0.innerHTML=`
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">Year:</span>
+      <div class="btn-grp" id="ov-yr">
+        ${YEARS.map(y=>`<button class="cbtn${y==='2023-24'?' active':''}" onclick="setOvYear('${y}')">${y}</button>`).join('')}
+      </div>
+      <span class="ctrl-lbl" style="margin-left:16px">Bubble size:</span>
+      <div class="btn-grp" id="ov-m">
+        <button class="cbtn active" onclick="setOvMetric('raw')">Total students</button>
+        <button class="cbtn" onclick="setOvMetric('per100k')">Per 100k</button>
+        <button class="cbtn" onclick="setOvMetric('teachers')">Teachers</button>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-hdr">
+          <span class="panel-title">New England · one bubble per state · ring = sector breakdown</span>
+          <span style="font-size:10px;color:var(--muted)">hover · click to drill down</span>
+        </div>
+        <div style="padding:10px 14px"><svg id="ne-map" style="width:100%;height:auto;display:block;"></svg></div>
+      </div>
+      <div id="ne-sidebar"></div>
+    </div>`;
+  pgs.appendChild(p0);
+
+  // State tabs
+  STATES.forEach((st,i)=>{
+    const t=document.createElement('div'); t.className='tab';
+    t.innerHTML=`<span class="tab-dot"></span>${st} — ${D.stateNames[st]}`;
+    t.onclick=()=>switchTab(i+1); tBar.appendChild(t);
+    const p=document.createElement('div'); p.className='page'; p.id=`pg-${i+1}`;
+    p.innerHTML=`
+      <div class="ctrl-row">
+        <span class="ctrl-lbl" style="color:${AC}">${D.stateNames[st]}</span>
+        <div class="btn-grp" id="st-yr-${st}">
+          ${YEARS.map(y=>`<button class="cbtn${y==='2023-24'?' active':''}" onclick="setStYear('${st}','${y}')">${y}</button>`).join('')}
+        </div>
+        <div class="btn-grp" id="st-m-${st}" style="margin-left:8px">
+          <button class="cbtn active" onclick="setStM('${st}','raw')">Total students</button>
+          <button class="cbtn" onclick="setStM('${st}','per100k')">Per 100k</button>
+          <button class="cbtn" onclick="setStM('${st}','teachers')">Teachers</button>
+        </div>
+        <span class="info-icon" onclick="showInfo('raw',this)" title="What is total students?">i</span>
+        <span class="info-icon" onclick="showInfo('per100k',this)" title="What is per 100k?">?</span>
+      </div>
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-hdr">
+            <span class="panel-title">${D.stateNames[st]} · pulsating bubbles = cities · hover for detail</span>
+            <span style="font-size:10px;color:var(--muted)">size = enrollment</span>
+          </div>
+          <div style="padding:8px 12px" id="st-map-${st}"></div>
+        </div>
+        <div class="panel" id="st-sb-${st}"></div>
+      </div>`;
+    pgs.appendChild(p);
+  });
+}
+
+function switchTab(idx){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.querySelectorAll('.page').forEach((p,i)=>p.classList.toggle('active',i===idx));
+}
+
+// ── INFO PANELS ───────────────────────────────────────────────────────────
+function showInfo(id, el) {
+  // Close any open panel first
+  document.querySelectorAll('.info-panel').forEach(p=>p.classList.remove('visible'));
+  const panel = document.getElementById('info-' + id);
+  if(!panel) return;
+  panel.classList.add('visible');
+  // Position near the clicked icon
+  const rect = el.getBoundingClientRect();
+  const panelW = 300, panelH = panel.offsetHeight || 260;
+  let left = rect.left + rect.width/2 - panelW/2;
+  let top  = rect.bottom + 8;
+  // Keep within viewport
+  left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
+  if(top + panelH > window.innerHeight - 8) top = rect.top - panelH - 8;
+  panel.style.left = left + 'px';
+  panel.style.top  = top + 'px';
+}
+function closeInfo(id) {
+  document.getElementById('info-' + id)?.classList.remove('visible');
+}
+// Click outside to close
+document.addEventListener('click', e => {
+  if(!e.target.closest('.info-panel') && !e.target.closest('.info-icon')) {
+    document.querySelectorAll('.info-panel').forEach(p=>p.classList.remove('visible'));
+  }
+});
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') {
+    document.querySelectorAll('.info-panel').forEach(p=>p.classList.remove('visible'));
+    document.getElementById('about-overlay')?.classList.remove('visible');
+    document.getElementById('findings-overlay')?.classList.remove('visible');
+  }
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+buildTabs();
+loadGeo().then(()=>{
+  renderNEMap();
+  renderNESidebar();
+  STATES.forEach(st=>{renderStateMap(st);renderStateSidebar(st);});
+});
+</script>
+</body>
+</html>
